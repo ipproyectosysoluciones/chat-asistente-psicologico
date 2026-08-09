@@ -94,3 +94,57 @@ export async function deactivateConsent(
     [consentId]
   );
 }
+
+/** A row bound for re-encryption (REQ-KEY-4): id, current key, encrypted BYTEA. */
+export interface ReEncryptionRow {
+  rowId: string;
+  keyVersion: number;
+  encryptedPayload: Buffer;
+}
+
+/**
+ * Batch source for the re-encryption worker: rows still encrypted under the
+ * old key (REQ-KEY-4), bounded by the 100–500 batch contract.
+ */
+export async function listConsentRowsForReEncryption(
+  db: DbQueryable,
+  keyFrom: number,
+  limit: number
+): Promise<ReEncryptionRow[]> {
+  const result = await db.query<{
+    id: string;
+    key_version: number;
+    encrypted_payload: Buffer;
+  }>(
+    `SELECT id, key_version, encrypted_payload
+       FROM consent_records
+      WHERE key_version = $1
+      ORDER BY created_at
+      LIMIT $2;`,
+    [keyFrom, limit]
+  );
+  return result.rows.map((row) => ({
+    rowId: row.id,
+    keyVersion: row.key_version,
+    encryptedPayload: row.encrypted_payload,
+  }));
+}
+
+/**
+ * Applies the re-encrypted payload inside the batch transaction (REQ-KEY-4):
+ * new key_version, new ciphertext, and a fresh integrity hash per row.
+ */
+export async function updateConsentEncryption(
+  db: DbQueryable,
+  rowId: string,
+  keyVersion: number,
+  encryptedPayload: Buffer,
+  integrityHash: string
+): Promise<void> {
+  await db.query(
+    `UPDATE consent_records
+        SET key_version = $2, encrypted_payload = $3, integrity_hash = $4
+      WHERE id = $1;`,
+    [rowId, keyVersion, encryptedPayload, integrityHash]
+  );
+}

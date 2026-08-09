@@ -3,7 +3,11 @@ import { describe, expect, it } from "vitest";
 import type { QueryResultRow } from "pg";
 
 import { purgeAnonymousSessions } from "../src/repositories/purge";
-import { createNextKeyVersion, currentActiveKeyVersion } from "../src/repositories/key-versions";
+import { createNextKeyVersion, currentActiveKeyVersion, getKeyVersion } from "../src/repositories/key-versions";
+import {
+  listConsentRowsForReEncryption,
+  updateConsentEncryption,
+} from "../src/repositories/consent";
 import {
   acknowledgeAlert,
   findOpenAlertByDedupeKey,
@@ -186,5 +190,88 @@ describe("alerts repo (REQ-ALERT-5 dedupe)", () => {
     expect(sqlTexts[0]).toMatch(/acknowledged/);
     await resolveAlert(db, "alert-1");
     expect(sqlTexts[1]).toMatch(/resolved/);
+  });
+});
+
+describe("key-versions: getKeyVersion (dual-read lookup, REQ-KEY-8)", () => {
+  it("returns the key metadata for a specific version", async () => {
+    const { db } = fakeDb([
+      {
+        rows: [
+          {
+            key_version: 3,
+            algorithm: "aes-256-cbc-hkdf-sha256",
+            salt: "salt-3",
+            status: "retired",
+            created_at: new Date("2026-08-02T00:00:00Z"),
+            expires_at: new Date("2026-08-09T00:00:00Z"),
+            forced_rotation_due_at: new Date("2026-08-09T12:00:00Z"),
+          },
+        ],
+        rowCount: 1,
+      },
+    ]);
+    const key = await getKeyVersion(db, 3);
+    expect(key?.keyVersion).toBe(3);
+    expect(key?.salt).toBe("salt-3");
+    expect(key?.status).toBe("retired");
+  });
+
+  it("filters by key_version with a parameterized query", async () => {
+    const { db, sqlTexts, paramLists } = fakeDb([{ rows: [], rowCount: 0 }]);
+    await getKeyVersion(db, 7);
+    expect(sqlTexts[0]).toMatch(/WHERE key_version = \$1/);
+    expect(paramLists[0]).toEqual([7]);
+  });
+
+  it("returns undefined when the version does not exist", async () => {
+    const { db } = fakeDb([{ rows: [], rowCount: 0 }]);
+    expect(await getKeyVersion(db, 99)).toBeUndefined();
+  });
+});
+
+describe("consent: re-encryption row source (REQ-KEY-4)", () => {
+  it("lists consent rows still on the old key with a bounded limit", async () => {
+    const { db, sqlTexts, paramLists } = fakeDb([
+      {
+        rows: [
+          {
+            id: "consent-1",
+            key_version: 2,
+            encrypted_payload: Buffer.from("payload-1"),
+          },
+          {
+            id: "consent-2",
+            key_version: 2,
+            encrypted_payload: Buffer.from("payload-2"),
+          },
+        ],
+        rowCount: 2,
+      },
+    ]);
+    const rows = await listConsentRowsForReEncryption(db, 2, 200);
+    expect(rows).toHaveLength(2);
+    expect(rows[0]?.rowId).toBe("consent-1");
+    expect(rows[1]?.encryptedPayload?.toString()).toBe("payload-2");
+    expect(sqlTexts[0]).toMatch(/key_version = \$1/);
+    expect(sqlTexts[0]).toMatch(/LIMIT \$2/);
+    expect(paramLists[0]).toEqual([2, 200]);
+  });
+
+  it("updates a consent row's key_version, payload and integrity hash", async () => {
+    const { db, sqlTexts, paramLists } = fakeDb([{ rows: [], rowCount: 1 }]);
+    await updateConsentEncryption(
+      db,
+      "consent-1",
+      3,
+      Buffer.from("new-payload"),
+      "hash-abc"
+    );
+    expect(sqlTexts[0]).toMatch(/UPDATE consent_records/);
+    expect(sqlTexts[0]).toMatch(/key_version = \$2/);
+    expect(sqlTexts[0]).toMatch(/encrypted_payload = \$3/);
+    expect(sqlTexts[0]).toMatch(/integrity_hash = \$4/);
+    expect(sqlTexts[0]).toMatch(/WHERE id = \$1/);
+    expect(paramLists[0]).toEqual(["consent-1", 3, Buffer.from("new-payload"), "hash-abc"]);
   });
 });

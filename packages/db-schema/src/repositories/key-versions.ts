@@ -81,6 +81,25 @@ export async function currentActiveKeyVersion(
   return row === undefined ? undefined : mapKeyVersion(row);
 }
 
+/**
+ * Lookup of a specific version's metadata (REQ-KEY-8 dual-read): decryption
+ * of a row uses the salt of the row's OWN key_version, even when that version
+ * is retired/expired during transition.
+ */
+export async function getKeyVersion(
+  db: DbQueryable,
+  keyVersion: number
+): Promise<KeyVersionInfo | undefined> {
+  const result = await db.query<KeyVersionRow>(
+    `SELECT key_version, algorithm, salt, status, created_at, expires_at, forced_rotation_due_at
+       FROM key_versions
+      WHERE key_version = $1;`,
+    [keyVersion]
+  );
+  const row = result.rows[0];
+  return row === undefined ? undefined : mapKeyVersion(row);
+}
+
 export async function retireKeyVersion(
   db: DbQueryable,
   keyVersion: number

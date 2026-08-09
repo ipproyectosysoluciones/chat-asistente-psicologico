@@ -15,7 +15,10 @@ export {
   createConsentRecord,
   findActiveConsentBySession,
   deactivateConsent,
+  listConsentRowsForReEncryption,
+  updateConsentEncryption,
   type NewConsentRecord,
+  type ReEncryptionRow,
 } from "./repositories/consent";
 export {
   createAlert,
@@ -33,6 +36,7 @@ export {
 export {
   createNextKeyVersion,
   currentActiveKeyVersion,
+  getKeyVersion,
   retireKeyVersion,
   type NewKeyVersion,
 } from "./repositories/key-versions";
