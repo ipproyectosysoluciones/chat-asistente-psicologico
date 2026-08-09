@@ -1,0 +1,22 @@
+{
+  "name": "@chatcap/shared-types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Domain types for the psychological chat assistant: roles, alert levels, gate results, encrypted payloads, RFC 7807 errors, alert events, RAG trace. as-const objects only, no enums.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@types/node": "catalog:"
+  }
+}
