@@ -1,0 +1,16 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+
+# Single source of truth for shared toolchain versions across the monorepo.
+# Referenced as "catalog:" in each package's devDependencies.
+catalog:
+  typescript: ^5.9.0
+  vitest: ^3.2.0
+  zod: ^4.0.0
+  pino: ^9.6.0
+  ioredis: ^5.4.0
+  pg: ^8.13.0
+  node-pg-migrate: ^7.9.0
+  "@types/node": ^24.0.0
+  "@types/pg": ^8.11.0
