@@ -28,6 +28,13 @@ const envSchema = z
     OPENAI_API_KEY: z.string().min(1),
     AI_EMISSION_ENABLED: booleanFromEnv("true"),
 
+    // Model swap is configuration-only (design §8, proposal assumption 6):
+    // the main chat model is ALWAYS used at temperature 0 (REQ-RAG-1), the
+    // NLI/classification model is the cheap side-task model (REQ-RAG-7).
+    LLM_CHAT_MODEL: z.string().min(1).default("gpt-4o"),
+    LLM_NLI_MODEL: z.string().min(1).default("gpt-4o-mini"),
+    EMBEDDING_MODEL: z.string().min(1).default("text-embedding-3-small"),
+
     // Master key material: min 32 chars; keys are DERIVED from this, never stored.
     CRYPTO_MASTER_SECRET: z.string().min(32),
     JWT_SECRET: z.string().min(32),
@@ -103,6 +110,11 @@ export interface AppConfig {
   adminPasswordHash: string;
   internalTokens: string[];
   gate: GateThresholds;
+  llm: {
+    chatModel: string;
+    nliModel: string;
+    embeddingModel: string;
+  };
   geo: {
     provider: "maxmind" | "ipstack" | "none";
     maxmindDbPath?: string;
@@ -142,6 +154,11 @@ export function loadConfig(
       cosineRetry: parsed.GATE_COSINE_RETRY,
       maxRetries: parsed.GATE_MAX_RETRIES,
       nliEnabled: parsed.GATE_NLI_ENABLED,
+    },
+    llm: {
+      chatModel: parsed.LLM_CHAT_MODEL,
+      nliModel: parsed.LLM_NLI_MODEL,
+      embeddingModel: parsed.EMBEDDING_MODEL,
     },
     geo: {
       provider: parsed.GEOIP_PROVIDER,

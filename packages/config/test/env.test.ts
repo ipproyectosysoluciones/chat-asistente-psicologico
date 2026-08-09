@@ -134,6 +134,26 @@ describe("loadConfig: valid env parses with defaults", () => {
     expect(config.internalTokens).toEqual(["a", "b", "c"]);
   });
 
+  test("LLM models default to gpt-4o / gpt-4o-mini / text-embedding-3-small", () => {
+    const config = loadConfig(validEnv());
+    expect(config.llm.chatModel).toBe("gpt-4o");
+    expect(config.llm.nliModel).toBe("gpt-4o-mini");
+    expect(config.llm.embeddingModel).toBe("text-embedding-3-small");
+  });
+
+  test("LLM models are overridable via env (model swap config-only)", () => {
+    const config = loadConfig(
+      validEnv({
+        LLM_CHAT_MODEL: "gpt-4o-mini",
+        LLM_NLI_MODEL: "gpt-4.1-mini",
+        EMBEDDING_MODEL: "text-embedding-3-large",
+      })
+    );
+    expect(config.llm.chatModel).toBe("gpt-4o-mini");
+    expect(config.llm.nliModel).toBe("gpt-4.1-mini");
+    expect(config.llm.embeddingModel).toBe("text-embedding-3-large");
+  });
+
   test("geo provider defaults to none with empty keys", () => {
     const config = loadConfig(validEnv());
     expect(config.geo.provider).toBe("none");
