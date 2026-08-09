@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Builds
+dist/
+build/
+coverage/
+*.tsbuildinfo
+
+# Environment & secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Runtime data
+data/
+*.log
+logs/
+
+# WhatsApp session (Baileys) — never commit session credentials
+*.session/
+sessions/
+auth_info/
+creds.json
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+
+# SDD / openspec — keep artifacts tracked (change history)
+# (openspec/ is intentionally tracked)
+
+# GGA cache
+.gga-cache/
