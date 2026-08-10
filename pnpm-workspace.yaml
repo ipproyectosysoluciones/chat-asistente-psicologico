@@ -12,5 +12,9 @@ catalog:
   ioredis: ^5.4.0
   pg: ^8.13.0
   node-pg-migrate: ^7.9.0
+  express: ^5.2.1
+  "@types/express": ^5.0.6
+  socket.io: ^4.8.3
+  socket.io-client: ^4.8.3
   "@types/node": ^24.0.0
   "@types/pg": ^8.11.0
