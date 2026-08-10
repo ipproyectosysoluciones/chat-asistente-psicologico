@@ -108,6 +108,25 @@ importers:
         specifier: 'catalog:'
         version: 3.2.7(@types/node@24.13.3)
 
+  packages/llm-client:
+    dependencies:
+      '@chatcap/config':
+        specifier: workspace:*
+        version: link:../config
+      '@chatcap/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.7(@types/node@24.13.3)
+
   packages/shared-types:
     devDependencies:
       '@types/node':
