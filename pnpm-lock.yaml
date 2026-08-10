@@ -58,6 +58,28 @@ importers:
         specifier: 'catalog:'
         version: 3.2.7(@types/node@24.13.3)
 
+  packages/crypto-keys:
+    dependencies:
+      '@chatcap/config':
+        specifier: workspace:*
+        version: link:../config
+      '@chatcap/db-schema':
+        specifier: workspace:*
+        version: link:../db-schema
+      '@chatcap/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.7(@types/node@24.13.3)
+
   packages/db-schema:
     dependencies:
       '@chatcap/config':

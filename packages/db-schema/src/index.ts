@@ -17,6 +17,7 @@ export {
   deactivateConsent,
   listConsentRowsForReEncryption,
   updateConsentEncryption,
+  countConsentRowsByKeyVersion,
   type NewConsentRecord,
   type ReEncryptionRow,
 } from "./repositories/consent";
@@ -38,6 +39,7 @@ export {
   currentActiveKeyVersion,
   getKeyVersion,
   retireKeyVersion,
+  listKeysPastForcedDue,
   type NewKeyVersion,
 } from "./repositories/key-versions";
 export {

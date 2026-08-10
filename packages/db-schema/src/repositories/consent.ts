@@ -148,3 +148,20 @@ export async function updateConsentEncryption(
     [rowId, keyVersion, encryptedPayload, integrityHash]
   );
 }
+
+/**
+ * Rows remaining under a key (REQ-KEY-4): the scheduler plans batches from
+ * this count and the forced job verifies 100% migration when it reaches 0.
+ */
+export async function countConsentRowsByKeyVersion(
+  db: DbQueryable,
+  keyVersion: number
+): Promise<number> {
+  const result = await db.query<{ count: number }>(
+    `SELECT count(*)::int AS count
+       FROM consent_records
+      WHERE key_version = $1;`,
+    [keyVersion]
+  );
+  return result.rows[0]?.count ?? 0;
+}

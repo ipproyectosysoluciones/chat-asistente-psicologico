@@ -109,3 +109,25 @@ export async function retireKeyVersion(
     [keyVersion]
   );
 }
+
+/**
+ * Forced-path source (REQ-KEY-3): keys whose `forced_rotation_due_at`
+ * (expiry + 12h) has passed, still in use by rows. Compromised keys are
+ * never re-encrypted against — they are excluded. `now` is always passed as a
+ * parameter, never interpolated.
+ */
+export async function listKeysPastForcedDue(
+  db: DbQueryable,
+  now: Date
+): Promise<KeyVersionInfo[]> {
+  const result = await db.query<KeyVersionRow>(
+    `SELECT key_version, algorithm, salt, status, created_at, expires_at, forced_rotation_due_at
+       FROM key_versions
+      WHERE forced_rotation_due_at IS NOT NULL
+        AND forced_rotation_due_at <= $1
+        AND status <> 'compromised'
+      ORDER BY key_version;`,
+    [now]
+  );
+  return result.rows.map(mapKeyVersion);
+}

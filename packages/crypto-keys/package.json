@@ -1,0 +1,27 @@
+{
+  "name": "@chatcap/crypto-keys",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AES-256-CBC encrypt-then-MAC with HKDF-SHA256 per-version key derivation (material never stored) and dual-read decryption by row key_version.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@chatcap/config": "workspace:*",
+    "@chatcap/db-schema": "workspace:*",
+    "@chatcap/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@types/node": "catalog:"
+  }
+}
