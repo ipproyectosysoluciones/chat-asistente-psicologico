@@ -158,6 +158,25 @@ importers:
         specifier: 'catalog:'
         version: 3.2.7(@types/node@24.13.3)
 
+  packages/validation:
+    dependencies:
+      '@chatcap/llm-client':
+        specifier: workspace:*
+        version: link:../llm-client
+      '@chatcap/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+    devDependencies:
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.7(@types/node@24.13.3)
+
 packages:
 
   '@esbuild/aix-ppc64@0.28.1':
