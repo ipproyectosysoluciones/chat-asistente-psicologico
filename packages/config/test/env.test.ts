@@ -28,7 +28,7 @@ function expectConfigError(env: Record<string, string>, expectedVar: string): vo
     expect(error).toBeInstanceOf(ConfigError);
     const message = (error as ConfigError).message;
     expect(message).toContain(expectedVar);
-    expect(message).toMatch(/DATABASE_URL|REDIS_URL|CRYPTO_MASTER_SECRET|JWT_SECRET|QR_KEY|OPENAI_API_KEY|ADMIN_|X_INTERNAL_TOKENS|AI_EMISSION_ENABLED|GATE_|GEOIP/);
+    expect(message).toMatch(/DATABASE_URL|REDIS_URL|CRYPTO_MASTER_SECRET|JWT_SECRET|QR_KEY|OPENAI_API_KEY|ADMIN_|X_INTERNAL_TOKENS|AI_EMISSION_ENABLED|GATE_|GEOIP|ALERT_THROTTLE/);
   }
 }
 
@@ -88,6 +88,14 @@ describe("loadConfig: fail-fast on missing/invalid required vars", () => {
 
   test("invalid GEOIP_PROVIDER fails", () => {
     expectConfigError(validEnv({ GEOIP_PROVIDER: "google" }), "GEOIP_PROVIDER");
+  });
+
+  test("non-positive alert throttle window fails", () => {
+    expectConfigError(validEnv({ ALERT_THROTTLE_RED_SECONDS: "0" }), "ALERT_THROTTLE_RED_SECONDS");
+    expectConfigError(
+      validEnv({ ALERT_THROTTLE_ORANGE_SECONDS: "-5" }),
+      "ALERT_THROTTLE_ORANGE_SECONDS"
+    );
   });
 });
 
@@ -163,6 +171,30 @@ describe("loadConfig: valid env parses with defaults", () => {
     const config = loadConfig(validEnv({ GEOIP_PROVIDER: "maxmind", MAXMIND_DB_PATH: "/data/GeoLite2.mmdb" }));
     expect(config.geo.provider).toBe("maxmind");
     expect(config.geo.maxmindDbPath).toBe("/data/GeoLite2.mmdb");
+  });
+
+  test("alert throttle windows default to 60s red / 300s orange / 900s yellow", () => {
+    const config = loadConfig(validEnv());
+    expect(config.alertThrottle).toEqual({
+      redSeconds: 60,
+      orangeSeconds: 300,
+      yellowSeconds: 900,
+    });
+  });
+
+  test("alert throttle windows are overridable via env", () => {
+    const config = loadConfig(
+      validEnv({
+        ALERT_THROTTLE_RED_SECONDS: "30",
+        ALERT_THROTTLE_ORANGE_SECONDS: "120",
+        ALERT_THROTTLE_YELLOW_SECONDS: "600",
+      })
+    );
+    expect(config.alertThrottle).toEqual({
+      redSeconds: 30,
+      orangeSeconds: 120,
+      yellowSeconds: 600,
+    });
   });
 });
 

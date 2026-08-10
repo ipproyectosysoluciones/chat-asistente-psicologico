@@ -24,8 +24,10 @@ export {
 export {
   createAlert,
   findOpenAlertByDedupeKey,
+  findAlertById,
   acknowledgeAlert,
   resolveAlert,
+  touchAlert,
   type NewAlert,
   type AlertRow,
 } from "./repositories/alerts";

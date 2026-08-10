@@ -13,6 +13,11 @@ export interface NotificationsConfig {
   databaseUrl: string;
   redisUrl: string;
   internalTokens: string[];
+  alertThrottle: {
+    redSeconds: number;
+    orangeSeconds: number;
+    yellowSeconds: number;
+  };
 }
 
 export function fromAppConfig(config: AppConfig): NotificationsConfig {
@@ -23,5 +28,10 @@ export function fromAppConfig(config: AppConfig): NotificationsConfig {
     databaseUrl: config.databaseUrl,
     redisUrl: config.redisUrl,
     internalTokens: config.internalTokens,
+    alertThrottle: {
+      redSeconds: config.alertThrottle.redSeconds,
+      orangeSeconds: config.alertThrottle.orangeSeconds,
+      yellowSeconds: config.alertThrottle.yellowSeconds,
+    },
   };
 }

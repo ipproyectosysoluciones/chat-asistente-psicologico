@@ -38,6 +38,7 @@ describe("fromAppConfig (config wiring)", () => {
       databaseUrl: "postgres://chatcap:secret@127.0.0.1:5432/chatcap",
       redisUrl: "redis://127.0.0.1:6379",
       internalTokens: ["notif-token-a", "notif-token-b"],
+      alertThrottle: { redSeconds: 60, orangeSeconds: 300, yellowSeconds: 900 },
     });
   });
 
@@ -45,5 +46,21 @@ describe("fromAppConfig (config wiring)", () => {
     const appConfig: AppConfig = loadConfig(fullEnv({ PORT: "3000" }));
     const config: NotificationsConfig = fromAppConfig(appConfig);
     expect(config.port).toBe(3000);
+  });
+
+  it("maps per-level throttle windows from the shared config", () => {
+    const appConfig: AppConfig = loadConfig(
+      fullEnv({
+        ALERT_THROTTLE_RED_SECONDS: "45",
+        ALERT_THROTTLE_ORANGE_SECONDS: "240",
+        ALERT_THROTTLE_YELLOW_SECONDS: "720",
+      })
+    );
+    const config: NotificationsConfig = fromAppConfig(appConfig);
+    expect(config.alertThrottle).toEqual({
+      redSeconds: 45,
+      orangeSeconds: 240,
+      yellowSeconds: 720,
+    });
   });
 });

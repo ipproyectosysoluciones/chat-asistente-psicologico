@@ -13,9 +13,11 @@ import {
 } from "../src/repositories/consent";
 import {
   createAlert,
+  findAlertById,
   findOpenAlertByDedupeKey,
   acknowledgeAlert,
   resolveAlert,
+  touchAlert,
 } from "../src/repositories/alerts";
 import { insertAuditEntry, listAuditByResource } from "../src/repositories/audit";
 import {
@@ -147,6 +149,38 @@ run("repositories vs test PG", () => {
     const afterReopen = await findOpenAlertByDedupeKey(pool, "dedupe-1");
     expect(afterReopen?.id).toBe(reopened.id);
     expect(afterReopen?.level).toBe("orange");
+  });
+
+  it("alerts: follow-up touch bumps updated_at; duplicate open insert rejected (REQ-ALERT-5)", async () => {
+    const session = await upsertSession(pool, { contactKeyAnon: "anon-key-alert-touch", jurisdiction: "AR" });
+    const alert = await createAlert(pool, {
+      level: "red", category: "suicide", sessionId: session.id, dedupeKey: "dedupe-touch-1",
+    });
+
+    const before = await findAlertById(pool, alert.id);
+    expect(before?.status).toBe("open");
+
+    await new Promise((resolve) => setTimeout(resolve, 20));
+    await touchAlert(pool, alert.id);
+    const after = await findAlertById(pool, alert.id);
+    expect(after?.id).toBe(alert.id);
+    expect(after?.status).toBe("open");
+    expect(new Date(after?.updatedAt ?? "").getTime()).toBeGreaterThan(
+      new Date(before?.updatedAt ?? "").getTime()
+    );
+
+    // DB-level one-open guarantee: a second open INSERT for the same dedupe
+    // key is rejected by the partial unique index, not silently duplicated.
+    await expect(
+      createAlert(pool, {
+        level: "red", category: "suicide", sessionId: session.id, dedupeKey: "dedupe-touch-1",
+      })
+    ).rejects.toThrow(/duplicate key/i);
+    const { rows } = await pool.query<{ id: string }>(
+      `SELECT id FROM alerts WHERE dedupe_key = 'dedupe-touch-1' AND status = 'open';`
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.id).toBe(alert.id);
   });
 
   it("audit: insert + query by resource, meta preserved (REQ-DASH-8)", async () => {

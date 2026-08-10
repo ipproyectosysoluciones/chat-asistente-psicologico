@@ -238,7 +238,11 @@ CREATE INDEX idx_vector_chunks_embedding_hnsw
 
 CREATE INDEX idx_alerts_level_status_created ON alerts (level, status, created_at DESC);
 CREATE INDEX idx_alerts_session ON alerts (session_id);
-CREATE INDEX idx_alerts_dedupe_key ON alerts (dedupe_key);
+-- One-open-alert semantics (REQ-ALERT-5): at most ONE open row per dedupe key,
+-- enforced by the database so a concurrent double-raise cannot double-insert.
+CREATE UNIQUE INDEX uq_alerts_one_open_dedupe_key
+  ON alerts (dedupe_key)
+  WHERE status = 'open';
 CREATE INDEX idx_sessions_state_last_activity ON sessions (ai_state, last_activity_at DESC);
 CREATE INDEX idx_sessions_purge ON sessions (purge_at) WHERE persistence_class = 'anonymous';
 CREATE INDEX idx_consent_records_session ON consent_records (session_id);

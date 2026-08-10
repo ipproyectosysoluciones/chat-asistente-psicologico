@@ -60,6 +60,12 @@ const envSchema = z
     GATE_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(1),
     GATE_NLI_ENABLED: booleanFromEnv("true"),
 
+    // Alert push throttle windows per severity (REQ-ALERT-5): repeats within
+    // the window are deduplicated/throttled, not pushed again.
+    ALERT_THROTTLE_RED_SECONDS: z.coerce.number().int().positive().default(60),
+    ALERT_THROTTLE_ORANGE_SECONDS: z.coerce.number().int().positive().default(300),
+    ALERT_THROTTLE_YELLOW_SECONDS: z.coerce.number().int().positive().default(900),
+
     // Geolocation: maxmind | ipstack | none (none = conservative default).
     GEOIP_PROVIDER: z.enum(["maxmind", "ipstack", "none"]).default("none"),
     MAXMIND_DB_PATH: z.string().default(""),
@@ -120,6 +126,11 @@ export interface AppConfig {
     maxmindDbPath?: string;
     ipstackApiKey?: string;
   };
+  alertThrottle: {
+    redSeconds: number;
+    orangeSeconds: number;
+    yellowSeconds: number;
+  };
 }
 
 export function loadConfig(
@@ -164,6 +175,11 @@ export function loadConfig(
       provider: parsed.GEOIP_PROVIDER,
       maxmindDbPath: parsed.MAXMIND_DB_PATH || undefined,
       ipstackApiKey: parsed.IPSTACK_API_KEY || undefined,
+    },
+    alertThrottle: {
+      redSeconds: parsed.ALERT_THROTTLE_RED_SECONDS,
+      orangeSeconds: parsed.ALERT_THROTTLE_ORANGE_SECONDS,
+      yellowSeconds: parsed.ALERT_THROTTLE_YELLOW_SECONDS,
     },
   };
 }

@@ -10,8 +10,10 @@ import {
 } from "../src/repositories/consent";
 import {
   acknowledgeAlert,
+  findAlertById,
   findOpenAlertByDedupeKey,
   resolveAlert,
+  touchAlert,
 } from "../src/repositories/alerts";
 import type { DbQueryable } from "../src/repositories/db";
 
@@ -166,6 +168,7 @@ describe("alerts repo (REQ-ALERT-5 dedupe)", () => {
             dedupe_key: "k1",
             acknowledged_by: null,
             created_at: new Date("2026-08-09T00:00:00Z"),
+            updated_at: new Date("2026-08-09T00:00:00Z"),
             resolved_at: null,
           },
         ],
@@ -190,6 +193,53 @@ describe("alerts repo (REQ-ALERT-5 dedupe)", () => {
     expect(sqlTexts[0]).toMatch(/acknowledged/);
     await resolveAlert(db, "alert-1");
     expect(sqlTexts[1]).toMatch(/resolved/);
+  });
+
+  it("finds an alert by id regardless of status", async () => {
+    const { db } = fakeDb([
+      {
+        rows: [
+          {
+            id: "alert-1",
+            level: "orange",
+            category: "self_harm",
+            session_id: "sess-1",
+            status: "acknowledged",
+            dedupe_key: "k1",
+            acknowledged_by: "user-9",
+            created_at: new Date("2026-08-09T00:00:00Z"),
+            updated_at: new Date("2026-08-09T00:00:00Z"),
+            resolved_at: null,
+          },
+        ],
+        rowCount: 1,
+      },
+    ]);
+    const alert = await findAlertById(db, "alert-1");
+    expect(alert?.id).toBe("alert-1");
+    expect(alert?.status).toBe("acknowledged");
+    expect(alert?.acknowledgedBy).toBe("user-9");
+  });
+
+  it("returns undefined for an unknown alert id", async () => {
+    const { db } = fakeDb([{ rows: [], rowCount: 0 }]);
+    expect(await findAlertById(db, "missing")).toBeUndefined();
+  });
+
+  it("queries alerts by id with a parameterized WHERE", async () => {
+    const { db, sqlTexts, paramLists } = fakeDb([{ rows: [], rowCount: 0 }]);
+    await findAlertById(db, "alert-1");
+    expect(sqlTexts[0]).toMatch(/WHERE id = \$1/);
+    expect(paramLists[0]).toEqual(["alert-1"]);
+  });
+
+  it("bumps updated_at on touch without changing status", async () => {
+    const { db, sqlTexts, paramLists } = fakeDb([{ rows: [], rowCount: 1 }]);
+    await touchAlert(db, "alert-1");
+    expect(sqlTexts[0]).toMatch(/UPDATE alerts/);
+    expect(sqlTexts[0]).toMatch(/updated_at = now\(\)/);
+    expect(sqlTexts[0]).toMatch(/WHERE id = \$1/);
+    expect(paramLists[0]).toEqual(["alert-1"]);
   });
 });
 

@@ -85,6 +85,8 @@ describe("migration 0001: security & privacy invariants (AGENTS.md)", () => {
 
   it("alerts dedupe key supports one-open-alert semantics", () => {
     expect(sql).toMatch(/dedupe_key\s+text/i);
+    expect(sql).toMatch(/uq_alerts_one_open_dedupe_key/i);
+    expect(sql).toMatch(/WHERE status = 'open'/);
   });
 
   it("otp_codes store hash-only with attempts cap", () => {

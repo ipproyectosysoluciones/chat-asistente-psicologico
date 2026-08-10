@@ -24,6 +24,7 @@ export interface AlertRow {
   dedupeKey: string;
   acknowledgedBy?: string;
   createdAt: string;
+  updatedAt: string;
   resolvedAt?: string;
 }
 
@@ -36,6 +37,7 @@ interface AlertDbRow extends QueryResultRow {
   dedupe_key: string;
   acknowledged_by: string | null;
   created_at: Date;
+  updated_at: Date;
   resolved_at: Date | null;
 }
 
@@ -49,12 +51,13 @@ function mapAlert(row: AlertDbRow): AlertRow {
     dedupeKey: row.dedupe_key,
     acknowledgedBy: row.acknowledged_by ?? undefined,
     createdAt: row.created_at.toISOString(),
+    updatedAt: row.updated_at.toISOString(),
     resolvedAt: row.resolved_at?.toISOString(),
   };
 }
 
 const ALERT_COLUMNS = `id, level, category, session_id, status, dedupe_key,
-            acknowledged_by, created_at, resolved_at`;
+            acknowledged_by, created_at, updated_at, resolved_at`;
 
 export async function findOpenAlertByDedupeKey(
   db: DbQueryable,
@@ -108,6 +111,37 @@ export async function resolveAlert(
 ): Promise<void> {
   await db.query(
     `UPDATE alerts SET status = 'resolved', resolved_at = now()
+      WHERE id = $1;`,
+    [alertId]
+  );
+}
+
+/** Finds a single alert by id regardless of status (REQ-ALERT-5 touch, 2.4 lifecycle). */
+export async function findAlertById(
+  db: DbQueryable,
+  alertId: string
+): Promise<AlertRow | undefined> {
+  const result = await db.query<AlertDbRow>(
+    `SELECT ${ALERT_COLUMNS}
+       FROM alerts
+      WHERE id = $1
+      LIMIT 1;`,
+    [alertId]
+  );
+  const row = result.rows[0];
+  return row === undefined ? undefined : mapAlert(row);
+}
+
+/**
+ * Bumps updated_at on a follow-up without changing status (REQ-ALERT-5):
+ * a repeated identical alert refreshes the open alert instead of inserting.
+ */
+export async function touchAlert(
+  db: DbQueryable,
+  alertId: string
+): Promise<void> {
+  await db.query(
+    `UPDATE alerts SET updated_at = now()
       WHERE id = $1;`,
     [alertId]
   );
