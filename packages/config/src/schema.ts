@@ -60,6 +60,10 @@ const envSchema = z
     GATE_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(1),
     GATE_NLI_ENABLED: booleanFromEnv("true"),
 
+    // RAG pipeline tuning: top-k chunks retrieved per query by the ai-rag
+    // service. Calibrated during verify (design §5.1); default 5.
+    RAG_TOP_K: z.coerce.number().int().min(1).max(50).default(5),
+
     // Alert push throttle windows per severity (REQ-ALERT-5): repeats within
     // the window are deduplicated/throttled, not pushed again.
     ALERT_THROTTLE_RED_SECONDS: z.coerce.number().int().positive().default(60),
@@ -144,6 +148,10 @@ export interface AppConfig {
   fallbackPushUrl: string;
   /** Allowed Socket.io origin; empty = same-origin only. */
   dashboardOrigin: string;
+  /** RAG pipeline tuning (ai-rag service, task 3.1): top-k retrieval depth. */
+  rag: {
+    topK: number;
+  };
 }
 
 export function loadConfig(
@@ -196,5 +204,6 @@ export function loadConfig(
     },
     fallbackPushUrl: parsed.FALLBACK_PUSH_URL,
     dashboardOrigin: parsed.DASHBOARD_ORIGIN,
+    rag: { topK: parsed.RAG_TOP_K },
   };
 }

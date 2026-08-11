@@ -182,6 +182,11 @@ describe("loadConfig: valid env parses with defaults", () => {
     });
   });
 
+  test("rag topK defaults to 5 and is overridable via RAG_TOP_K", () => {
+    expect(loadConfig(validEnv()).rag).toEqual({ topK: 5 });
+    expect(loadConfig(validEnv({ RAG_TOP_K: "8" })).rag).toEqual({ topK: 8 });
+  });
+
   test("alert throttle windows are overridable via env", () => {
     const config = loadConfig(
       validEnv({
