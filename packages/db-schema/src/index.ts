@@ -61,3 +61,4 @@ export {
   type PurgeOptions,
   type PurgeResult,
 } from "./repositories/purge";
+export { findUserRole } from "./repositories/users";

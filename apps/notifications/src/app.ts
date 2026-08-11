@@ -3,11 +3,14 @@ import express, { type Express } from "express";
 import type { Logger } from "@chatcap/telemetry";
 
 import { notFoundHandler } from "./errors";
+import { createLifecycleRouter, type LifecycleDeps } from "./lifecycle-router";
 
 /**
  * Express app factory (task 2.1 scaffold). `/healthz` is pure liveness;
  * `/readyz` probes the real dependencies (pg, redis) so Caddy/Docker
  * healthchecks route traffic only to a service that can serve (design §3.1).
+ * The alert lifecycle endpoints (task 2.4) are mounted when `lifecycle`
+ * deps are provided — keeps health-only deployments dependency-free.
  */
 
 export interface ReadinessCheck {
@@ -20,6 +23,7 @@ export interface AppDeps {
     database: ReadinessCheck;
     redis: ReadinessCheck;
   };
+  lifecycle?: LifecycleDeps;
 }
 
 export function createApp(deps: AppDeps): Express {
@@ -51,6 +55,10 @@ export function createApp(deps: AppDeps): Express {
       checks,
     });
   });
+
+  if (deps.lifecycle !== undefined) {
+    app.use(createLifecycleRouter(deps.lifecycle));
+  }
 
   app.use(notFoundHandler);
 

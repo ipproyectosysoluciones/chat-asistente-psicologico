@@ -1,8 +1,7 @@
-import { createHash, timingSafeEqual } from "node:crypto";
-
 import type { Server } from "socket.io";
 
 import type { AlertPushPayload, PushChannel, PushResult } from "./push-channel";
+import { tokensEqual } from "./internal-token";
 
 /**
  * Socket.io push channel (task 2.3, REQ-ALERT-2): emits the alert event to the
@@ -18,13 +17,6 @@ import type { AlertPushPayload, PushChannel, PushResult } from "./push-channel";
 
 export const SUPERVISORS_ROOM = "supervisors";
 export const ALERT_EVENT = "alert:event";
-
-/** Constant-time token comparison (sha256 both sides to hide length). */
-function tokensEqual(provided: string, expected: string): boolean {
-  const providedHash = createHash("sha256").update(provided).digest();
-  const expectedHash = createHash("sha256").update(expected).digest();
-  return timingSafeEqual(providedHash, expectedHash);
-}
 
 /**
  * Attaches the supervisors room with an authentication gate: the handshake

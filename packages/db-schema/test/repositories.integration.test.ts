@@ -33,6 +33,7 @@ import {
   rollbackBatch,
 } from "../src/repositories/reencryption";
 import { purgeAnonymousSessions } from "../src/repositories/purge";
+import { findUserRole } from "../src/repositories/users";
 
 const execFileAsync = promisify(execFile);
 
@@ -314,5 +315,17 @@ run("repositories vs test PG", () => {
 
     const secondRun = await purgeAnonymousSessions(pool, { batchSize: 2 });
     expect(secondRun.purgedSessions).toBe(0);
+  });
+
+  it("users: findUserRole resolves role for RBAC preflight (REQ-DASH-1)", async () => {
+    const actorId = "00000000-0000-7000-8000-0000000000bb";
+    await pool.query(
+      `INSERT INTO users (id, email, password_hash, role)
+       VALUES ($1, 'admin@test.local', 'hash-test', 'admin');`,
+      [actorId]
+    );
+
+    await expect(findUserRole(pool, actorId)).resolves.toBe("admin");
+    await expect(findUserRole(pool, "00000000-0000-7000-8000-0000000000cc")).resolves.toBeUndefined();
   });
 });

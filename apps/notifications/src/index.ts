@@ -1,4 +1,4 @@
-import { insertAuditEntry } from "@chatcap/db-schema";
+import { findUserRole, insertAuditEntry } from "@chatcap/db-schema";
 import { loadConfig } from "@chatcap/config";
 import { createLogger } from "@chatcap/telemetry";
 import Redis from "ioredis";
@@ -11,7 +11,7 @@ import { IoredisSubscriber } from "./redis-subscriber";
 import { parseTelemetryMessage } from "./telemetry-parser";
 import { parseRaiseAlertRequest } from "./raise-alert";
 import { routeAlert } from "./alert-router";
-import { pgAlertStore } from "./alert-store";
+import { pgAlertStore, pgAlertLifecycleStore } from "./alert-store";
 import { RedisThrottleStore } from "./throttle";
 import { buildPushPayload } from "./push-payload";
 import { pushAlertWithFallback } from "./alert-pusher";
@@ -51,6 +51,17 @@ const app = createApp({
       check: async () => {
         await redis.ping();
       },
+    },
+  },
+  // Alert lifecycle endpoints (task 2.4, REQ-ALERT-6): supervisor/admin
+  // acknowledge/resolve with RBAC preflight and who/when/why audit.
+  lifecycle: {
+    logger,
+    internalTokens: config.internalTokens,
+    store: pgAlertLifecycleStore(pool),
+    findUserRole: (userId) => findUserRole(pool, userId),
+    audit: async (entry) => {
+      await insertAuditEntry(pool, entry);
     },
   },
 });

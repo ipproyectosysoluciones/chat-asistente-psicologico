@@ -16,6 +16,7 @@ import {
   touchAlert,
 } from "../src/repositories/alerts";
 import type { DbQueryable } from "../src/repositories/db";
+import { findUserRole } from "../src/repositories/users";
 
 /** Fake queryable: returns queued results per query, records SQL + params. */
 function fakeDb(
@@ -323,5 +324,21 @@ describe("consent: re-encryption row source (REQ-KEY-4)", () => {
     expect(sqlTexts[0]).toMatch(/integrity_hash = \$4/);
     expect(sqlTexts[0]).toMatch(/WHERE id = \$1/);
     expect(paramLists[0]).toEqual(["consent-1", 3, Buffer.from("new-payload"), "hash-abc"]);
+  });
+});
+
+describe("users repo (REQ-DASH-1 RBAC preflight for alert lifecycle)", () => {
+  it("findUserRole returns the role of a known user", async () => {
+    const { db, sqlTexts, paramLists } = fakeDb([{ rows: [{ role: "supervisor" }] }]);
+    const role = await findUserRole(db, "00000000-0000-7000-8000-0000000000aa");
+    expect(role).toBe("supervisor");
+    expect(sqlTexts[0]).toMatch(/SELECT role FROM users/);
+    expect(sqlTexts[0]).toMatch(/WHERE id = \$1/);
+    expect(paramLists[0]).toEqual(["00000000-0000-7000-8000-0000000000aa"]);
+  });
+
+  it("returns undefined for an unknown user (never throws)", async () => {
+    const { db } = fakeDb([{ rows: [] }]);
+    await expect(findUserRole(db, "nope")).resolves.toBeUndefined();
   });
 });
