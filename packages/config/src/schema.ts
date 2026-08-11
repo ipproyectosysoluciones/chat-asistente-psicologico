@@ -66,6 +66,16 @@ const envSchema = z
     ALERT_THROTTLE_ORANGE_SECONDS: z.coerce.number().int().positive().default(300),
     ALERT_THROTTLE_YELLOW_SECONDS: z.coerce.number().int().positive().default(900),
 
+    // Fallback alert push endpoint (REQ-ALERT-4): when the Socket.io push
+    // cannot be confirmed, the PII-stripped payload is POSTed here (Telegram
+    // bot API or internal webhook). Empty = no fallback configured.
+    FALLBACK_PUSH_URL: z.string().default(""),
+
+    // Allowed origin for the supervisor dashboard's Socket.io connections.
+    // Empty = same-origin only (CORS disabled) — the pilot serves dashboard
+    // and notifications behind the same Caddy TLS origin.
+    DASHBOARD_ORIGIN: z.string().default(""),
+
     // Geolocation: maxmind | ipstack | none (none = conservative default).
     GEOIP_PROVIDER: z.enum(["maxmind", "ipstack", "none"]).default("none"),
     MAXMIND_DB_PATH: z.string().default(""),
@@ -131,6 +141,9 @@ export interface AppConfig {
     orangeSeconds: number;
     yellowSeconds: number;
   };
+  fallbackPushUrl: string;
+  /** Allowed Socket.io origin; empty = same-origin only. */
+  dashboardOrigin: string;
 }
 
 export function loadConfig(
@@ -181,5 +194,7 @@ export function loadConfig(
       orangeSeconds: parsed.ALERT_THROTTLE_ORANGE_SECONDS,
       yellowSeconds: parsed.ALERT_THROTTLE_YELLOW_SECONDS,
     },
+    fallbackPushUrl: parsed.FALLBACK_PUSH_URL,
+    dashboardOrigin: parsed.DASHBOARD_ORIGIN,
   };
 }

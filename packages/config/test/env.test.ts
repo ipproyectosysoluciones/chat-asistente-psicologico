@@ -196,6 +196,22 @@ describe("loadConfig: valid env parses with defaults", () => {
       yellowSeconds: 600,
     });
   });
+
+  test("FALLBACK_PUSH_URL defaults to empty and parses a value", () => {
+    expect(loadConfig(validEnv()).fallbackPushUrl).toBe("");
+    const withUrl = loadConfig(
+      validEnv({ FALLBACK_PUSH_URL: "https://hooks.example.test/alert" })
+    );
+    expect(withUrl.fallbackPushUrl).toBe("https://hooks.example.test/alert");
+  });
+
+  test("DASHBOARD_ORIGIN defaults to empty (same-origin only) and parses a value", () => {
+    expect(loadConfig(validEnv()).dashboardOrigin).toBe("");
+    const withOrigin = loadConfig(
+      validEnv({ DASHBOARD_ORIGIN: "https://dashboard.example.test" })
+    );
+    expect(withOrigin.dashboardOrigin).toBe("https://dashboard.example.test");
+  });
 });
 
 describe("KeyProvider: EnvKeyProvider pilot implementation", () => {

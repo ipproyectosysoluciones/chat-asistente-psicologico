@@ -1,3 +1,4 @@
+import type { AlertLevel } from "@chatcap/shared-types";
 import type { AppConfig } from "@chatcap/config";
 
 /**
@@ -18,6 +19,10 @@ export interface NotificationsConfig {
     orangeSeconds: number;
     yellowSeconds: number;
   };
+  /** Fallback push endpoint (REQ-ALERT-4); empty = not configured. */
+  fallbackPushUrl: string;
+  /** Allowed Socket.io origin for the dashboard; empty = same-origin only. */
+  dashboardOrigin: string;
 }
 
 export function fromAppConfig(config: AppConfig): NotificationsConfig {
@@ -33,5 +38,27 @@ export function fromAppConfig(config: AppConfig): NotificationsConfig {
       orangeSeconds: config.alertThrottle.orangeSeconds,
       yellowSeconds: config.alertThrottle.yellowSeconds,
     },
+    fallbackPushUrl: config.fallbackPushUrl,
+    dashboardOrigin: config.dashboardOrigin,
+  };
+}
+
+/**
+ * Per-level throttle window in milliseconds (task 2.2): the unit the Redis
+ * throttle store operates in. Red repeats are gated for 60s, orange 5min,
+ * yellow 15min by default — env-overridable via ALERT_THROTTLE_*_SECONDS.
+ */
+export function throttleWindowMsFor(
+  config: NotificationsConfig
+): (level: AlertLevel) => number {
+  return (level) => {
+    switch (level) {
+      case "red":
+        return config.alertThrottle.redSeconds * 1000;
+      case "orange":
+        return config.alertThrottle.orangeSeconds * 1000;
+      case "yellow":
+        return config.alertThrottle.yellowSeconds * 1000;
+    }
   };
 }

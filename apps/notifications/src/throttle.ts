@@ -12,12 +12,18 @@ export interface ThrottleStore {
   mark(key: string, windowMs: number): Promise<void>;
 }
 
-/** Minimal surface of an ioredis client needed by RedisThrottleStore. */
+/**
+ * Minimal surface of an ioredis client needed by RedisThrottleStore: the
+ * positional `SET key value PX <ms> NX` form ioredis actually types (it has
+ * no object-form overload). A real `Redis` instance satisfies this interface.
+ */
 export interface SetArgsClient {
   set(
     key: string,
     value: string,
-    args: { PX: number; NX: boolean }
+    msToken: "PX",
+    milliseconds: number,
+    nx: "NX"
   ): Promise<"OK" | null>;
 }
 
@@ -25,11 +31,11 @@ export class RedisThrottleStore implements ThrottleStore {
   constructor(private readonly client: SetArgsClient) {}
 
   async checkAndMark(key: string, windowMs: number): Promise<boolean> {
-    const result = await this.client.set(key, "1", { PX: windowMs, NX: true });
+    const result = await this.client.set(key, "1", "PX", windowMs, "NX");
     return result === "OK";
   }
 
   async mark(key: string, windowMs: number): Promise<void> {
-    await this.client.set(key, "1", { PX: windowMs, NX: true });
+    await this.client.set(key, "1", "PX", windowMs, "NX");
   }
 }

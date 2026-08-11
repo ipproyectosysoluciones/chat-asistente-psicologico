@@ -5,14 +5,20 @@ import { RedisThrottleStore } from "../src/throttle";
 /**
  * Throttle store (REQ-ALERT-5): a per-key window that suppresses repeated
  * notification pushes. The Redis implementation is a single atomic
- * `SET key value NX PX windowMs` — NX wins the first set, subsequent sets
+ * `SET key value PX windowMs NX` — NX wins the first set, subsequent sets
  * within the window are no-ops, and the window expires on its own.
  */
 
 interface FakeClient {
-  calls: Array<{ key: string; value: string; px: number; nx: boolean }>;
+  calls: Array<{ key: string; value: string; px: number; nx: true }>;
   nextResult: "OK" | null;
-  set(key: string, value: string, args: { PX: number; NX: boolean }): Promise<"OK" | null>;
+  set(
+    key: string,
+    value: string,
+    msToken: "PX",
+    milliseconds: number,
+    nx: "NX"
+  ): Promise<"OK" | null>;
 }
 
 function fakeClient(nextResult: "OK" | null): FakeClient {
@@ -20,8 +26,8 @@ function fakeClient(nextResult: "OK" | null): FakeClient {
   const client: FakeClient = {
     calls,
     nextResult,
-    async set(key, value, args) {
-      calls.push({ key, value, px: args.PX, nx: args.NX });
+    async set(key, value, _msToken, milliseconds, _nx) {
+      calls.push({ key, value, px: milliseconds, nx: true });
       return client.nextResult;
     },
   };

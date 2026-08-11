@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import type { AlertLevel } from "@chatcap/shared-types";
 import { loadConfig, type AppConfig } from "@chatcap/config";
 
-import { fromAppConfig, type NotificationsConfig } from "../src/config";
+import { fromAppConfig, throttleWindowMsFor, type NotificationsConfig } from "../src/config";
 
 /**
  * Config wiring (task 2.1 AC): the notifications service derives its own
@@ -39,6 +40,8 @@ describe("fromAppConfig (config wiring)", () => {
       redisUrl: "redis://127.0.0.1:6379",
       internalTokens: ["notif-token-a", "notif-token-b"],
       alertThrottle: { redSeconds: 60, orangeSeconds: 300, yellowSeconds: 900 },
+      fallbackPushUrl: "",
+      dashboardOrigin: "",
     });
   });
 
@@ -62,5 +65,36 @@ describe("fromAppConfig (config wiring)", () => {
       orangeSeconds: 240,
       yellowSeconds: 720,
     });
+  });
+
+  it("maps the fallback push URL (empty when unset)", () => {
+    const withoutUrl = fromAppConfig(loadConfig(fullEnv()));
+    expect(withoutUrl.fallbackPushUrl).toBe("");
+
+    const withUrl = fromAppConfig(
+      loadConfig(fullEnv({ FALLBACK_PUSH_URL: "https://hooks.example.test/alert" }))
+    );
+    expect(withUrl.fallbackPushUrl).toBe("https://hooks.example.test/alert");
+  });
+
+  it("maps the dashboard Socket.io origin (empty = same-origin only)", () => {
+    expect(fromAppConfig(loadConfig(fullEnv())).dashboardOrigin).toBe("");
+
+    const withOrigin = fromAppConfig(
+      loadConfig(fullEnv({ DASHBOARD_ORIGIN: "https://dashboard.example.test" }))
+    );
+    expect(withOrigin.dashboardOrigin).toBe("https://dashboard.example.test");
+  });
+});
+
+describe("throttleWindowMsFor", () => {
+  it("maps each level to its throttle window in milliseconds", () => {
+    const config = fromAppConfig(
+      loadConfig(fullEnv({ ALERT_THROTTLE_RED_SECONDS: "45" }))
+    );
+    const windowMs = throttleWindowMsFor(config);
+    expect(windowMs("red" as AlertLevel)).toBe(45_000);
+    expect(windowMs("orange" as AlertLevel)).toBe(300_000);
+    expect(windowMs("yellow" as AlertLevel)).toBe(900_000);
   });
 });
