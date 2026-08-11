@@ -54,10 +54,10 @@ One conventional commit per package/app slice, e.g. `feat(db-schema): pgvector m
 
 ## Phase 2: Notifications Service
 
-- [ ] 2.1 Scaffold — app entry, `/healthz` `/readyz`, config wiring, Redis pub-sub subscriber; REQ-ALERT-1; deps: 1.2–1.4, 1.6; AC: healthz green; tests: vitest boot.
-- [ ] 2.2 Alert routing + dedupe/throttle — level routing, `dedupe_key = sha256(level || session_id || category || keyword)`, one-open-alert semantics, throttle windows; REQ-ALERT-1/5; deps: 2.1; AC: repeated crisis keyword → single open alert, follow-ups update it; tests: vitest + test PG.
-- [ ] 2.3 Socket.io push + fallback — emit to dashboard, red push < 1s, fallback channel (Telegram/Web) on push failure, PII-stripped logs; REQ-ALERT-2/4/6; deps: 2.2, 1.4; AC: latency harness < 1s; push-failure → fallback attempted + audit row; tests: vitest + Socket.io client harness.
-- [ ] 2.4 Alert lifecycle endpoints + audit — acknowledge/resolve transitions (`open → acknowledged → resolved`), audit rows (who/when/why, no PII); REQ-ALERT-6; deps: 2.2, 1.6; AC: state-machine tests; tests: vitest + test PG.
+- [x] 2.1 Scaffold — app entry, `/healthz` `/readyz`, config wiring, Redis pub-sub subscriber; REQ-ALERT-1; deps: 1.2–1.4, 1.6; AC: healthz green; tests: vitest boot.
+- [x] 2.2 Alert routing + dedupe/throttle — level routing, `dedupe_key = sha256(level || session_id || category || keyword)`, one-open-alert semantics, throttle windows; REQ-ALERT-1/5; deps: 2.1; AC: repeated crisis keyword → single open alert, follow-ups update it; tests: vitest + test PG.
+- [x] 2.3 Socket.io push + fallback — emit to dashboard, red push < 1s, fallback channel (Telegram/Web) on push failure, PII-stripped logs; REQ-ALERT-2/4/6; deps: 2.2, 1.4; AC: latency harness < 1s; push-failure → fallback attempted + audit row; tests: vitest + Socket.io client harness.
+- [x] 2.4 Alert lifecycle endpoints + audit — acknowledge/resolve transitions (`open → acknowledged → resolved`), audit rows (who/when/why, no PII); REQ-ALERT-6; deps: 2.2, 1.6; AC: state-machine tests; tests: vitest + test PG.
 
 ## Phase 3: ai-rag Service
 
