@@ -69,7 +69,7 @@ One conventional commit per package/app slice, e.g. `feat(db-schema): pgvector m
 
 ## Phase 4: chat-bot Service (BuilderBot)
 
-- [ ] 4.1 Scaffold — `createBot({ flow, provider, database })` with Baileys + PostgreSQLDB adapter, three-pillar separation, healthz, X-Internal-Token client for ai-rag; REQ-CHATBOT-1/7; deps: 1.2–1.7, 1.10, 1.11; AC: boots in test mode; provider swap config-only; tests: vitest.
+- [x] 4.1 Scaffold — `createBot({ flow, provider, database })` with Baileys + PostgreSQLDB adapter, three-pillar separation, healthz, X-Internal-Token client for ai-rag; REQ-CHATBOT-1/7; deps: 1.2–1.7, 1.10, 1.11; AC: boots in test mode; provider swap config-only; tests: vitest.
 - [ ] 4.2 Welcome/menu flow — welcome + menu (topics/privacy/crisis), menu keyword re-entry, no data stored yet; REQ-CHATBOT-3/4; deps: 4.1; AC: first-contact + re-entry flow tests; tests: vitest flow harness.
 - [ ] 4.3 Geolocation + jurisdiction — IP geolocation (MaxMind/IPStack) propose jurisdiction, user confirmation, VPN discrepancy log (PII-stripped), conservative default for unknown; REQ-CONSENT-1/6; deps: 4.2, 1.3; AC: confirmed / VPN / unknown-jurisdiction tests; tests: vitest.
 - [ ] 4.4 Privacy/consent flow — notice per jurisdiction (6 frameworks + default) before any support topic; checkbox → crypto-keys encrypt → Base64 → node-qrcode → QR media via addAction → consent registry row (terms_version, jurisdiction, key_version, integrity_hash); REQ-CONSENT-2/3/4, REQ-CHATBOT-4/6; deps: 4.3, 1.7, 1.9; AC: consent e2e against test DB; nothing persisted pre-consent; tests: vitest + test PG.
