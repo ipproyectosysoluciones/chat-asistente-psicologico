@@ -2,15 +2,15 @@ import type { ChatMessage } from "@chatcap/shared-types";
 import { SESSION_STATE } from "@chatcap/shared-types";
 
 import { type Flow, type FlowContext, type FlowOutput } from "./flow";
+import { WELCOME_TEXT } from "./menu";
 
 /**
- * Placeholder flow for the task 4.1 scaffold. It proves the message pipeline
- * end-to-end (provider event → flow → sendText) with a static welcome and no
- * side effects. Replaced by the real menu flow in task 4.2.
+ * Placeholder flow for the task 4.1 scaffold, kept as a deterministic double
+ * for orchestrator tests. The real dialogue flow is `createMenuFlow` (task
+ * 4.2, REQ-CHATBOT-3), which the composition root wires in production.
  */
 
-export const WELCOME_TEXT =
-  "Hola, soy el asistente de Chat Asistencia Psicológica. Estoy aquí para ofrecerte apoyo e información. Ten en cuenta que no reemplazo a un profesional de la salud.";
+export { WELCOME_TEXT };
 
 export function createScaffoldFlow(): Flow {
   const handle = async (

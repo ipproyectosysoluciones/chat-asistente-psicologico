@@ -7,7 +7,7 @@ import { createApp } from "./app";
 import { createBot } from "./bot";
 import { fromAppConfig } from "./config";
 import { PostgresChatDatabase } from "./database/postgres";
-import { createScaffoldFlow } from "./flow/scaffold";
+import { createMenuFlow } from "./flow/menu";
 import { createProvider } from "./provider/factory";
 
 /**
@@ -51,7 +51,7 @@ const app = createApp({
 
 const bot = createBot(
   {
-    flow: createScaffoldFlow(),
+    flow: createMenuFlow(),
     provider: createProvider({
       provider: config.chatbot.provider,
       baileysSessionDir: config.chatbot.baileysSessionDir,
