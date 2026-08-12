@@ -61,11 +61,11 @@ One conventional commit per package/app slice, e.g. `feat(db-schema): pgvector m
 
 ## Phase 3: ai-rag Service
 
-- [ ] 3.1 Scaffold — `POST /internal/rag/process` (X-Internal-Token), healthz, config, shared-types wiring; REQ-RAG-2 (HNSW startup assertion); deps: 1.2–1.6, 1.10, 1.11; AC: POST bad input → RFC 7807 problem+json; tests: vitest.
-- [ ] 3.2 Risk classification — GPT-4o-mini classify red/orange/yellow/normal driving routing before retrieval; REQ-RAG-7; deps: 3.1, 1.10; AC: mock classify → routing decision; tests: vitest.
-- [ ] 3.3 Retrieval — embed query (text-embedding-3-small) → pgvector HNSW top-k with metadata (category/source/language/framework); REQ-RAG-2/3; deps: 3.1, 1.6, 1.10; AC: metadata-attributed top-k; missing index → fail loudly; tests: vitest + test PG.
-- [ ] 3.4 Generation — GPT-4o temp 0, RAG-only prompt (chunks only), medication standard-refusal path; REQ-RAG-1; deps: 3.3, 1.10; AC: prompt contains only chunk context; temp 0 asserted; tests: vitest (mock).
-- [ ] 3.5 Orchestrator + gate integration — classify → retrieve → generate → gate; emit/retry/orange/yellow routing; trace metadata (chunks + gate scores) for dashboard; raise alert events via pub-sub (notifications contract); REQ-RAG-4/5/8, REQ-ALERT-1; deps: 3.2–3.4, 1.11; AC: gate pass/block/borderline integration tests; trace returned; tests: vitest + test PG + Redis.
+- [x] 3.1 Scaffold — `POST /internal/rag/process` (X-Internal-Token), healthz, config, shared-types wiring; REQ-RAG-2 (HNSW startup assertion); deps: 1.2–1.6, 1.10, 1.11; AC: POST bad input → RFC 7807 problem+json; tests: vitest.
+- [x] 3.2 Risk classification — GPT-4o-mini classify red/orange/yellow/normal driving routing before retrieval; REQ-RAG-7; deps: 3.1, 1.10; AC: mock classify → routing decision; tests: vitest.
+- [x] 3.3 Retrieval — embed query (text-embedding-3-small) → pgvector HNSW top-k with metadata (category/source/language/framework); REQ-RAG-2/3; deps: 3.1, 1.6, 1.10; AC: metadata-attributed top-k; missing index → fail loudly; tests: vitest + test PG.
+- [x] 3.4 Generation — GPT-4o temp 0, RAG-only prompt (chunks only), medication standard-refusal path; REQ-RAG-1; deps: 3.3, 1.10; AC: prompt contains only chunk context; temp 0 asserted; tests: vitest (mock).
+- [x] 3.5 Orchestrator + gate integration — classify → retrieve → generate → gate; emit/retry/orange/yellow routing; trace metadata (chunks + gate scores) for dashboard; raise alert events via pub-sub (notifications contract); REQ-RAG-4/5/8, REQ-ALERT-1; deps: 3.2–3.4, 1.11; AC: gate pass/block/borderline integration tests; trace returned; tests: vitest + test PG + Redis.
 
 ## Phase 4: chat-bot Service (BuilderBot)
 
