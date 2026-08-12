@@ -22,6 +22,8 @@ import {
   QR_SIGNATURE_STATUS,
   RISK_LEVEL,
   ROLE,
+  SESSION_STATE,
+  LEGAL_FRAMEWORKS,
 } from "../src/index";
 import type {
   AccessTokenClaims,
@@ -39,6 +41,9 @@ import type {
   ReEncryptionState,
   RetrievedChunk,
   Role,
+  ChatMessage,
+  SessionState,
+  LegalFrameworkDescriptor,
 } from "../src/index";
 
 describe("shared-types: as-const runtime constants", () => {
@@ -101,6 +106,25 @@ describe("shared-types: as-const runtime constants", () => {
       const source = readFileSync(join(srcDir, file), "utf8");
       expect(source).not.toMatch(/export\s+enum\s+\w+|\benum\s+[A-Z]\w+\s*\{/);
     }
+  });
+
+  test("chat-bot session states cover the full flow (REQ-CHATBOT-1)", () => {
+    expect(SESSION_STATE.INITIAL).toBe("initial");
+    expect(SESSION_STATE.AWAITING_JURISDICTION).toBe("awaiting_jurisdiction");
+    expect(SESSION_STATE.MENU).toBe("menu");
+    expect(SESSION_STATE.TOPIC).toBe("topic");
+    expect(SESSION_STATE.CRISIS).toBe("crisis");
+  });
+
+  test("legal frameworks cover pilot markets plus a conservative default", () => {
+    const jurisdictions = LEGAL_FRAMEWORKS.map((f) => f.jurisdiction);
+    expect(jurisdictions).toEqual(
+      expect.arrayContaining(["CO", "MX", "US", "EU", "AR", "CL", "DEFAULT"])
+    );
+    const codes = LEGAL_FRAMEWORKS.map((f) => f.frameworkCode);
+    expect(new Set(codes).size).toBe(codes.length);
+    const eu = LEGAL_FRAMEWORKS.find((f) => f.jurisdiction === "EU");
+    expect(eu?.frameworkCode).toBe("EU-GDPR");
   });
 });
 
@@ -180,6 +204,33 @@ describe("shared-types: type-level smoke", () => {
     expectTypeOf<QrPayload["v"]>().toEqualTypeOf<1>();
     expectTypeOf<QrPayload["consentId"]>().toBeString();
     expectTypeOf<QrPayload["keyVersion"]>().toBeNumber();
+  });
+
+  test("SessionState is exactly the five-state bot flow union", () => {
+    expectTypeOf<SessionState>().toEqualTypeOf<
+      | "initial"
+      | "awaiting_jurisdiction"
+      | "menu"
+      | "topic"
+      | "crisis"
+    >();
+  });
+
+  test("ChatMessage carries only the fields the flow may touch", () => {
+    expectTypeOf<ChatMessage>().toMatchTypeOf<{
+      from: string;
+      body: string;
+      remoteIp?: string;
+    }>();
+  });
+
+  test("LegalFrameworkDescriptor is the pilot framework table row", () => {
+    expectTypeOf<LegalFrameworkDescriptor>().toMatchTypeOf<{
+      countryCode: string;
+      jurisdiction: string;
+      frameworkCode: string;
+      name: string;
+    }>();
   });
 });
 

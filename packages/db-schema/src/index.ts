@@ -8,6 +8,7 @@ export {
   upsertSession,
   getSession,
   setSessionPersistence,
+  setSessionJurisdiction,
   touchSessionActivity,
   type SessionInput,
 } from "./repositories/sessions";

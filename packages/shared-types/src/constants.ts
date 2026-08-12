@@ -145,6 +145,30 @@ export const EVENT_TYPE = {
   PURGE_RUN: "purge_run",
 } as const;
 
+/** Chat-bot flow states (REQ-CHATBOT-1 state machine, design §4.2). */
+export const SESSION_STATE = {
+  INITIAL: "initial",
+  AWAITING_JURISDICTION: "awaiting_jurisdiction",
+  MENU: "menu",
+  TOPIC: "topic",
+  CRISIS: "crisis",
+} as const;
+
+/**
+ * Legal frameworks by jurisdiction (REQ-CHATBOT-3). `EU` buckets the GDPR
+ * member states; `DEFAULT` is the conservative fallback applied when
+ * geolocation and user confirmation cannot resolve a jurisdiction.
+ */
+export const LEGAL_FRAMEWORKS = [
+  { countryCode: "CO", jurisdiction: "CO", frameworkCode: "COL-1581", name: "Colombia — Ley 1581" },
+  { countryCode: "MX", jurisdiction: "MX", frameworkCode: "MX-LFPDPPP", name: "México — LFPDPPP" },
+  { countryCode: "US", jurisdiction: "US", frameworkCode: "US-HIPAA", name: "Estados Unidos — HIPAA" },
+  { countryCode: "EU", jurisdiction: "EU", frameworkCode: "EU-GDPR", name: "Unión Europea — RGPD" },
+  { countryCode: "AR", jurisdiction: "AR", frameworkCode: "AR-25326", name: "Argentina — Ley 25.326" },
+  { countryCode: "CL", jurisdiction: "CL", frameworkCode: "CL-19628", name: "Chile — Ley 19.628" },
+  { countryCode: "XX", jurisdiction: "DEFAULT", frameworkCode: "DEFAULT", name: "Default conservador" },
+] as const;
+
 /** Default coherence-gate thresholds (calibrated on pilot data during verify). */
 export const GATE_THRESHOLDS_DEFAULT = {
   COSINE_EMIT: 0.85,

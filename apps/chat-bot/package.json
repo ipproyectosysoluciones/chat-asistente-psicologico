@@ -1,0 +1,30 @@
+{
+  "name": "@chatcap/chat-bot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WhatsApp chat service: three-pillar BuilderBot contract (Flow / Provider / Database), privacy-first jurisdiction onboarding and grounded RAG emission.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@chatcap/config": "workspace:*",
+    "@chatcap/db-schema": "workspace:*",
+    "@chatcap/shared-types": "workspace:*",
+    "@chatcap/telemetry": "workspace:*",
+    "express": "catalog:",
+    "pg": "catalog:"
+  },
+  "devDependencies": {
+    "@types/express": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

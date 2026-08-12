@@ -11,12 +11,14 @@ import {
   GUARDRAIL_LEVEL,
   JOB_STATUS,
   KEY_STATUS,
+  LEGAL_FRAMEWORKS,
   NLI_VERDICT,
   OTP_STATUS,
   PERSISTENCE_CLASS,
   QR_SIGNATURE_STATUS,
   RISK_LEVEL,
   ROLE,
+  SESSION_STATE,
 } from "./constants";
 
 export type Role = (typeof ROLE)[keyof typeof ROLE];
@@ -42,6 +44,20 @@ export type QrSignatureStatus =
   (typeof QR_SIGNATURE_STATUS)[keyof typeof QR_SIGNATURE_STATUS];
 export type ActorType = (typeof ACTOR_TYPE)[keyof typeof ACTOR_TYPE];
 export type ErrorCode = (typeof ERROR_CODE)[keyof typeof ERROR_CODE];
+export type SessionState = (typeof SESSION_STATE)[keyof typeof SESSION_STATE];
+export type LegalFrameworkDescriptor =
+  (typeof LEGAL_FRAMEWORKS)[number];
+
+/**
+ * Chat message handled by the bot (REQ-CHATBOT-1). `from` is the raw
+ * provider identifier (phone/waid); it is hashed into a contact key before
+ * any persistence — never stored or logged as-is.
+ */
+export interface ChatMessage {
+  from: string;
+  body: string;
+  remoteIp?: string;
+}
 
 /** NLI verdict produced by the GPT-4o-mini side-task (REQ-RAG-5). */
 export interface NliResult {

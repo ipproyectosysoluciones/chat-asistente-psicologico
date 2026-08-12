@@ -15,6 +15,7 @@ import {
   resolveAlert,
   touchAlert,
 } from "../src/repositories/alerts";
+import { setSessionJurisdiction } from "../src/repositories/sessions";
 import type { DbQueryable } from "../src/repositories/db";
 import { findUserRole } from "../src/repositories/users";
 
@@ -340,5 +341,45 @@ describe("users repo (REQ-DASH-1 RBAC preflight for alert lifecycle)", () => {
   it("returns undefined for an unknown user (never throws)", async () => {
     const { db } = fakeDb([{ rows: [] }]);
     await expect(findUserRole(db, "nope")).resolves.toBeUndefined();
+  });
+});
+
+describe("sessions repo: setSessionJurisdiction (REQ-CHATBOT-3)", () => {
+  const sessionRow = (overrides: Record<string, unknown> = {}) => ({
+    id: "sess-1",
+    contact_key_anon: "anon-hash-abc",
+    jurisdiction: "CO",
+    persistence_class: "anonymous",
+    consent_state: "notice_shown",
+    ai_state: "auto",
+    created_at: new Date("2026-01-01T00:00:00Z"),
+    last_activity_at: new Date("2026-01-01T00:00:00Z"),
+    purge_at: new Date("2026-01-02T00:00:00Z"),
+    ...overrides,
+  });
+
+  it("updates jurisdiction and returns the session", async () => {
+    const { db } = fakeDb([{ rows: [sessionRow()], rowCount: 1 }]);
+    const session = await setSessionJurisdiction(db, "sess-1", "CO");
+    expect(session.id).toBe("sess-1");
+    expect(session.jurisdiction).toBe("CO");
+  });
+
+  it("issues a parameterized UPDATE keyed by session id", async () => {
+    const { db, sqlTexts, paramLists } = fakeDb([
+      { rows: [sessionRow({ jurisdiction: "MX" })], rowCount: 1 },
+    ]);
+    await setSessionJurisdiction(db, "sess-1", "MX");
+    expect(sqlTexts[0]).toMatch(/UPDATE sessions/);
+    expect(sqlTexts[0]).toMatch(/jurisdiction = \$2/);
+    expect(sqlTexts[0]).toMatch(/WHERE id = \$1/);
+    expect(paramLists[0]).toEqual(["sess-1", "MX"]);
+  });
+
+  it("throws when the session id does not exist", async () => {
+    const { db } = fakeDb([{ rows: [], rowCount: 0 }]);
+    await expect(setSessionJurisdiction(db, "missing", "CO")).rejects.toThrow(
+      "sessions"
+    );
   });
 });

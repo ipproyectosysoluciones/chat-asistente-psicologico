@@ -103,6 +103,43 @@ importers:
         specifier: 'catalog:'
         version: 3.2.7(@types/node@24.13.3)
 
+  apps/chat-bot:
+    dependencies:
+      '@chatcap/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@chatcap/db-schema':
+        specifier: workspace:*
+        version: link:../../packages/db-schema
+      '@chatcap/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+      '@chatcap/telemetry':
+        specifier: workspace:*
+        version: link:../../packages/telemetry
+      express:
+        specifier: 'catalog:'
+        version: 5.2.1
+      pg:
+        specifier: 'catalog:'
+        version: 8.22.0
+    devDependencies:
+      '@types/express':
+        specifier: 'catalog:'
+        version: 5.0.6
+      '@types/node':
+        specifier: 'catalog:'
+        version: 24.13.3
+      '@types/pg':
+        specifier: 'catalog:'
+        version: 8.21.0
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 'catalog:'
+        version: 3.2.7(@types/node@24.13.3)
+
   apps/notifications:
     dependencies:
       '@chatcap/config':

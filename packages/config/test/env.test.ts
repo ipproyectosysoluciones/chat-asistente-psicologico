@@ -16,6 +16,8 @@ function validEnv(overrides: Record<string, string> = {}): Record<string, string
     JWT_SECRET: MIN,
     QR_KEY: MIN,
     X_INTERNAL_TOKENS: "token-a,token-b",
+    CHATBOT_INTERNAL_TOKEN: "token-b",
+    CONTACT_KEY_SALT: "x".repeat(16),
     ...overrides,
   };
 }
@@ -28,7 +30,7 @@ function expectConfigError(env: Record<string, string>, expectedVar: string): vo
     expect(error).toBeInstanceOf(ConfigError);
     const message = (error as ConfigError).message;
     expect(message).toContain(expectedVar);
-    expect(message).toMatch(/DATABASE_URL|REDIS_URL|CRYPTO_MASTER_SECRET|JWT_SECRET|QR_KEY|OPENAI_API_KEY|ADMIN_|X_INTERNAL_TOKENS|AI_EMISSION_ENABLED|GATE_|GEOIP|ALERT_THROTTLE/);
+    expect(message).toMatch(/DATABASE_URL|REDIS_URL|CRYPTO_MASTER_SECRET|JWT_SECRET|QR_KEY|OPENAI_API_KEY|ADMIN_|X_INTERNAL_TOKENS|AI_EMISSION_ENABLED|GATE_|GEOIP|ALERT_THROTTLE|CHATBOT_|CONTACT_KEY_SALT/);
   }
 }
 
@@ -138,7 +140,9 @@ describe("loadConfig: valid env parses with defaults", () => {
   });
 
   test("internal tokens are trimmed and empties dropped", () => {
-    const config = loadConfig(validEnv({ X_INTERNAL_TOKENS: " a , b ,, c " }));
+    const config = loadConfig(
+      validEnv({ X_INTERNAL_TOKENS: " a , b ,, c ", CHATBOT_INTERNAL_TOKEN: "b" })
+    );
     expect(config.internalTokens).toEqual(["a", "b", "c"]);
   });
 
@@ -216,6 +220,56 @@ describe("loadConfig: valid env parses with defaults", () => {
       validEnv({ DASHBOARD_ORIGIN: "https://dashboard.example.test" })
     );
     expect(withOrigin.dashboardOrigin).toBe("https://dashboard.example.test");
+  });
+});
+
+describe("loadConfig: chatbot block (task 4.1)", () => {
+  test("provider defaults to baileys with an empty session dir", () => {
+    const config = loadConfig(validEnv());
+    expect(config.chatbot.provider).toBe("baileys");
+    expect(config.chatbot.baileysSessionDir).toBe("");
+  });
+
+  test("provider swap to meta is configuration-only (design §8)", () => {
+    const config = loadConfig(
+      validEnv({
+        CHATBOT_PROVIDER: "meta",
+        CHATBOT_META_ACCESS_TOKEN: "EAATestToken",
+        CHATBOT_META_PHONE_NUMBER_ID: "123456789",
+      })
+    );
+    expect(config.chatbot.provider).toBe("meta");
+    expect(config.chatbot.metaAccessToken).toBe("EAATestToken");
+    expect(config.chatbot.metaPhoneNumberId).toBe("123456789");
+  });
+
+  test("invalid CHATBOT_PROVIDER fails fast", () => {
+    expectConfigError(validEnv({ CHATBOT_PROVIDER: "telegram" }), "CHATBOT_PROVIDER");
+  });
+
+  test("CONTACT_KEY_SALT is required with a minimum length", () => {
+    expectConfigError(validEnv({ CONTACT_KEY_SALT: "tooshort" }), "CONTACT_KEY_SALT");
+  });
+
+  test("CHATBOT_INTERNAL_TOKEN must be one of X_INTERNAL_TOKENS", () => {
+    expectConfigError(
+      validEnv({ CHATBOT_INTERNAL_TOKEN: "unknown-token" }),
+      "CHATBOT_INTERNAL_TOKEN"
+    );
+  });
+
+  test("AI RAG base url defaults to the private Docker network alias", () => {
+    const config = loadConfig(validEnv());
+    expect(config.chatbot.aiRagBaseUrl).toBe("http://ai-rag:3000");
+    expect(config.chatbot.internalToken).toBe("token-b");
+    expect(config.chatbot.contactKeySalt).toBe("x".repeat(16));
+  });
+
+  test("AI RAG base url is overridable via env", () => {
+    const config = loadConfig(
+      validEnv({ CHATBOT_AI_RAG_BASE_URL: "http://localhost:3110" })
+    );
+    expect(config.chatbot.aiRagBaseUrl).toBe("http://localhost:3110");
   });
 });
 

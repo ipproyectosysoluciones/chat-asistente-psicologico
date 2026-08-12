@@ -139,3 +139,30 @@ export async function touchSessionActivity(
     [sessionId]
   );
 }
+
+/**
+ * Persist the resolved legal jurisdiction (REQ-CHATBOT-3). Called by the
+ * bot's `persist_jurisdiction` effect once the user confirms their country;
+ * jurisdiction is a plaintext column (not health data), so no encryption is
+ * required, but access is still RBAC-scoped.
+ */
+export async function setSessionJurisdiction(
+  db: DbQueryable,
+  sessionId: string,
+  jurisdiction: string
+): Promise<Session> {
+  const result = await db.query<SessionRow>(
+    `UPDATE sessions
+        SET jurisdiction = $2,
+            last_activity_at = now()
+      WHERE id = $1
+      RETURNING id, contact_key_anon, jurisdiction, persistence_class, consent_state,
+                ai_state, created_at, last_activity_at, purge_at;`,
+    [sessionId, jurisdiction]
+  );
+  const row = result.rows[0];
+  if (row === undefined) {
+    throw new Error(`sessions: update failed for ${sessionId}`);
+  }
+  return mapSession(row);
+}

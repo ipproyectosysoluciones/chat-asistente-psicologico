@@ -84,6 +84,18 @@ const envSchema = z
     GEOIP_PROVIDER: z.enum(["maxmind", "ipstack", "none"]).default("none"),
     MAXMIND_DB_PATH: z.string().default(""),
     IPSTACK_API_KEY: z.string().default(""),
+
+    // Chat bot service (phase 4): provider swap is configuration-only
+    // (design §8, REQ-CHATBOT-1) — Baileys ↔ Meta. CHATBOT_INTERNAL_TOKEN
+    // must be one of the internal tokens ai-rag accepts, and CONTACT_KEY_SALT
+    // is a per-deploy pepper for hashing phone numbers into contact keys.
+    CHATBOT_PROVIDER: z.enum(["baileys", "meta"]).default("baileys"),
+    CHATBOT_BAILEYS_SESSION_DIR: z.string().default(""),
+    CHATBOT_META_ACCESS_TOKEN: z.string().default(""),
+    CHATBOT_META_PHONE_NUMBER_ID: z.string().default(""),
+    CHATBOT_AI_RAG_BASE_URL: z.string().url().default("http://ai-rag:3000"),
+    CHATBOT_INTERNAL_TOKEN: z.string().min(1),
+    CONTACT_KEY_SALT: z.string().min(16),
   })
   .superRefine((data, ctx) => {
     if (data.GATE_COSINE_EMIT <= data.GATE_COSINE_RETRY) {
@@ -91,6 +103,16 @@ const envSchema = z
         code: z.ZodIssueCode.custom,
         path: ["GATE_COSINE_EMIT"],
         message: `GATE_COSINE_EMIT (${data.GATE_COSINE_EMIT}) must be greater than GATE_COSINE_RETRY (${data.GATE_COSINE_RETRY})`,
+      });
+    }
+    if (!data.X_INTERNAL_TOKENS.includes(data.CHATBOT_INTERNAL_TOKEN)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["CHATBOT_INTERNAL_TOKEN"],
+        // Never echo the token value: ConfigError output is logged, and a
+        // service-to-service credential must not leak into log payloads.
+        message:
+          "CHATBOT_INTERNAL_TOKEN must be one of the tokens in X_INTERNAL_TOKENS",
       });
     }
   });
@@ -152,6 +174,20 @@ export interface AppConfig {
   rag: {
     topK: number;
   };
+  /** Chat bot service wiring (phase 4): provider is a config-only swap. */
+  chatbot: {
+    provider: "baileys" | "meta";
+    /** Persistence dir for Baileys sessions; empty when using Meta. */
+    baileysSessionDir: string;
+    metaAccessToken?: string;
+    metaPhoneNumberId?: string;
+    /** Base URL of the ai-rag service over the private Docker network. */
+    aiRagBaseUrl: string;
+    /** Token presented to ai-rag; must be in `internalTokens` (cross-checked). */
+    internalToken: string;
+    /** Per-deploy pepper used to hash contact identifiers (min 16 chars). */
+    contactKeySalt: string;
+  };
 }
 
 export function loadConfig(
@@ -205,5 +241,14 @@ export function loadConfig(
     fallbackPushUrl: parsed.FALLBACK_PUSH_URL,
     dashboardOrigin: parsed.DASHBOARD_ORIGIN,
     rag: { topK: parsed.RAG_TOP_K },
+    chatbot: {
+      provider: parsed.CHATBOT_PROVIDER,
+      baileysSessionDir: parsed.CHATBOT_BAILEYS_SESSION_DIR,
+      metaAccessToken: parsed.CHATBOT_META_ACCESS_TOKEN || undefined,
+      metaPhoneNumberId: parsed.CHATBOT_META_PHONE_NUMBER_ID || undefined,
+      aiRagBaseUrl: parsed.CHATBOT_AI_RAG_BASE_URL,
+      internalToken: parsed.CHATBOT_INTERNAL_TOKEN,
+      contactKeySalt: parsed.CONTACT_KEY_SALT,
+    },
   };
 }

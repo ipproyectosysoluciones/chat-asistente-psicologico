@@ -2,18 +2,18 @@ import { describe, expect, test } from "vitest";
 
 import type { AppConfig } from "@chatcap/config";
 
-import { fromAppConfig, type AiRagConfig } from "../src/config";
+import { fromAppConfig, type ChatBotConfig } from "../src/config";
 
 /**
- * Service-local config wiring (task 3.1): the ai-rag service derives its
- * config from the shared zod-validated AppConfig — no local env parsing so
- * boot fails fast with the shared ConfigError when a var is missing.
+ * Service-local config wiring (task 4.1): the chat-bot derives its config
+ * from the shared zod-validated AppConfig — no local env parsing, so boot
+ * fails fast with the shared ConfigError when a var is missing.
  */
 
 function baseConfig(): AppConfig {
   return {
     env: "test",
-    port: 3110,
+    port: 3120,
     logLevel: "info",
     databaseUrl: "postgres://chatcap:test@localhost:5432/chatcap_test",
     redisUrl: "redis://localhost:6379",
@@ -53,30 +53,28 @@ function baseConfig(): AppConfig {
   };
 }
 
-describe("fromAppConfig (task 3.1 config wiring)", () => {
-  test("maps shared AppConfig fields the pipeline needs", () => {
-    const config: AiRagConfig = fromAppConfig(baseConfig());
+describe("fromAppConfig (task 4.1 config wiring)", () => {
+  test("maps shared AppConfig fields the bot needs", () => {
+    const config: ChatBotConfig = fromAppConfig(baseConfig());
 
     expect(config.env).toBe("test");
-    expect(config.port).toBe(3110);
+    expect(config.port).toBe(3120);
     expect(config.logLevel).toBe("info");
     expect(config.databaseUrl).toBe(
       "postgres://chatcap:test@localhost:5432/chatcap_test"
     );
     expect(config.redisUrl).toBe("redis://localhost:6379");
-    expect(config.openAiApiKey).toBe("sk-test");
-    expect(config.internalTokens).toEqual(["token-a", "token-b"]);
-    expect(config.gate).toEqual({
-      cosineEmit: 0.85,
-      cosineRetry: 0.75,
-      maxRetries: 1,
-      nliEnabled: true,
+    expect(config.chatbot).toEqual({
+      provider: "baileys",
+      baileysSessionDir: "",
+      aiRagBaseUrl: "http://ai-rag:3000",
+      internalToken: "token-b",
+      contactKeySalt: "x".repeat(16),
     });
-    expect(config.llm).toEqual({
-      chatModel: "gpt-4o",
-      nliModel: "gpt-4o-mini",
-      embeddingModel: "text-embedding-3-small",
-    });
-    expect(config.rag).toEqual({ topK: 5 });
+  });
+
+  test("exposes the geo provider selection for jurisdiction onboarding", () => {
+    const config = fromAppConfig(baseConfig());
+    expect(config.geo.provider).toBe("none");
   });
 });

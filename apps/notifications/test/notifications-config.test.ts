@@ -24,6 +24,8 @@ function fullEnv(overrides: Record<string, string> = {}): Record<string, string>
     ADMIN_EMAIL: "admin@chatcap.test",
     ADMIN_PASSWORD_HASH: "hash-test",
     X_INTERNAL_TOKENS: "notif-token-a, notif-token-b",
+    CHATBOT_INTERNAL_TOKEN: "notif-token-b",
+    CONTACT_KEY_SALT: "x".repeat(16),
     ...overrides,
   };
 }
