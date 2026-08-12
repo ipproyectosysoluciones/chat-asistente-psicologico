@@ -7,7 +7,10 @@ import { createApp } from "./app";
 import { createBot } from "./bot";
 import { fromAppConfig } from "./config";
 import { PostgresChatDatabase } from "./database/postgres";
+import { createJurisdictionFlow } from "./flow/jurisdiction";
 import { createMenuFlow } from "./flow/menu";
+import { createSessionFlow } from "./flow/session";
+import { createGeoResolver } from "./geo/factory";
 import { createProvider } from "./provider/factory";
 
 /**
@@ -51,7 +54,12 @@ const app = createApp({
 
 const bot = createBot(
   {
-    flow: createMenuFlow(),
+    flow: createSessionFlow({
+      menu: createMenuFlow(),
+      jurisdiction: createJurisdictionFlow({
+        geoResolver: createGeoResolver(config.geo),
+      }),
+    }),
     provider: createProvider({
       provider: config.chatbot.provider,
       baileysSessionDir: config.chatbot.baileysSessionDir,

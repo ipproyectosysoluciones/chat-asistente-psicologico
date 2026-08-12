@@ -16,6 +16,8 @@ export interface FlowState {
   jurisdiction?: string;
   /** Country detected by the geo provider, if any (never a raw IP). */
   geoCountry?: string;
+  /** Jurisdiction proposed to the user, pending explicit confirmation (task 4.3). */
+  proposedJurisdiction?: string;
 }
 
 /**
