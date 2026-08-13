@@ -12,5 +12,9 @@ export interface ChatDatabase {
     sessionId: string,
     jurisdiction: string
   ): Promise<Session>;
+  setSessionAiState(
+    sessionId: string,
+    aiState: Session["aiState"]
+  ): Promise<Session>;
   ping(): Promise<void>;
 }

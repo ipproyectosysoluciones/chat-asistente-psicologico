@@ -1,12 +1,14 @@
 import { loadConfig } from "@chatcap/config";
-import { createLogger } from "@chatcap/telemetry";
+import { createLogger, RedisEventEmitter } from "@chatcap/telemetry";
 import { Pool } from "pg";
+import Redis from "ioredis";
 
 import { HttpAiRagClient } from "./ai-rag-client";
 import { createApp } from "./app";
 import { createBot } from "./bot";
 import { fromAppConfig } from "./config";
 import { PostgresChatDatabase } from "./database/postgres";
+import { createCrisisFlow } from "./flow/crisis";
 import { createJurisdictionFlow } from "./flow/jurisdiction";
 import { createMenuFlow } from "./flow/menu";
 import { createSessionFlow } from "./flow/session";
@@ -34,6 +36,14 @@ const aiRag = new HttpAiRagClient({
   internalToken: config.chatbot.internalToken,
 });
 
+// PII-free alert events over Redis pub-sub (design §2.2, task 4.5). A
+// failing publish must never drop a crisis response silently — the emitter
+// surfaces the error so the bot falls back to human takeover.
+const redis = new Redis(config.redisUrl, { maxRetriesPerRequest: 2 });
+const emitter = new RedisEventEmitter(redis, (error) => {
+  logger.error("telemetry publish failed", { error: String(error) });
+});
+
 const app = createApp({
   logger,
   readiness: {
@@ -56,6 +66,7 @@ const bot = createBot(
   {
     flow: createSessionFlow({
       menu: createMenuFlow(),
+      crisis: createCrisisFlow(),
       jurisdiction: createJurisdictionFlow({
         geoResolver: createGeoResolver(config.geo),
       }),
@@ -69,7 +80,7 @@ const bot = createBot(
     }),
     database: new PostgresChatDatabase(pool),
   },
-  { logger, contactKeySalt: config.chatbot.contactKeySalt }
+  { logger, contactKeySalt: config.chatbot.contactKeySalt, emitter }
 );
 
 async function boot(): Promise<void> {
@@ -90,6 +101,7 @@ async function shutdown(signal: string): Promise<void> {
   logger.info("shutting down", { signal });
   await bot.stop();
   await pool.end();
+  redis.disconnect();
   process.exit(0);
 }
 

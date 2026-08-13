@@ -4,16 +4,20 @@ import { type Flow, type FlowContext, type FlowOutput } from "./flow";
 import { MENU_TEXT, WELCOME_TEXT } from "./menu";
 
 /**
- * Session flow composition (task 4.3): routes by state. First contact shows
- * the welcome + menu AND the jurisdiction proposal (REQ-CHATBOT-3 first
- * contact, REQ-CONSENT-1/6), moving to AWAITING_JURISDICTION; the
- * jurisdiction conversation is handled by the jurisdiction flow; every other
- * state falls back to the menu flow (keyword re-entry preserved).
+ * Session flow composition (task 4.3, extended 4.5): routes by state. First
+ * contact shows the welcome + menu AND the jurisdiction proposal
+ * (REQ-CHATBOT-3 first contact, REQ-CONSENT-1/6), moving to
+ * AWAITING_JURISDICTION; the jurisdiction conversation is handled by the
+ * jurisdiction flow. The crisis guard runs FIRST at every state: a crisis
+ * keyword (REQ-CHATBOT-5) wins over whatever the session was doing, so the
+ * immediate crisis response is never blocked by an unfinished onboarding.
+ * Every other state falls back to the menu flow (keyword re-entry preserved).
  */
 
 export interface SessionFlowDeps {
   menu: Flow;
   jurisdiction: Flow;
+  crisis: Flow;
 }
 
 export function createSessionFlow(deps: SessionFlowDeps): Flow {
@@ -21,6 +25,12 @@ export function createSessionFlow(deps: SessionFlowDeps): Flow {
     message: { from: string; body: string },
     context: FlowContext
   ): Promise<FlowOutput> => {
+    // Crisis guard: matched keywords win at ANY state (REQ-CHATBOT-5).
+    const crisisOutput = await deps.crisis.handle(message, context);
+    if (crisisOutput.replies.length > 0) {
+      return crisisOutput;
+    }
+
     const { state } = context;
 
     if (state.state === SESSION_STATE.AWAITING_JURISDICTION) {

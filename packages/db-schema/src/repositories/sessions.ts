@@ -194,3 +194,30 @@ export async function setSessionConsentState(
   }
   return mapSession(row);
 }
+
+/**
+ * Forces the session ai_state (REQ-ALERT-4, REQ-DASH-3): human takeover
+ * disables AI emission per chat. The crisis flow calls this when a red alert
+ * cannot be raised over pub-sub — the escalation must never depend on a
+ * single channel, and the fallback is a human-only session.
+ */
+export async function setSessionAiState(
+  db: DbQueryable,
+  sessionId: string,
+  aiState: Session["aiState"]
+): Promise<Session> {
+  const result = await db.query<SessionRow>(
+    `UPDATE sessions
+        SET ai_state = $2,
+            last_activity_at = now()
+      WHERE id = $1
+      RETURNING id, contact_key_anon, jurisdiction, persistence_class, consent_state,
+                ai_state, created_at, last_activity_at, purge_at;`,
+    [sessionId, aiState]
+  );
+  const row = result.rows[0];
+  if (row === undefined) {
+    throw new Error(`sessions: update failed for ${sessionId}`);
+  }
+  return mapSession(row);
+}

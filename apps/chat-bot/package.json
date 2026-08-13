@@ -19,6 +19,7 @@
     "@chatcap/shared-types": "workspace:*",
     "@chatcap/telemetry": "workspace:*",
     "express": "catalog:",
+    "ioredis": "catalog:",
     "pg": "catalog:",
     "qrcode": "catalog:"
   },

@@ -1,6 +1,7 @@
 import type { Session } from "@chatcap/shared-types";
 import type { DbQueryable } from "@chatcap/db-schema";
 import {
+  setSessionAiState,
   setSessionJurisdiction,
   upsertSession,
 } from "@chatcap/db-schema";
@@ -24,6 +25,13 @@ export class PostgresChatDatabase implements ChatDatabase {
     jurisdiction: string
   ): Promise<Session> {
     return setSessionJurisdiction(this.db, sessionId, jurisdiction);
+  }
+
+  setSessionAiState(
+    sessionId: string,
+    aiState: Session["aiState"]
+  ): Promise<Session> {
+    return setSessionAiState(this.db, sessionId, aiState);
   }
 
   async ping(): Promise<void> {

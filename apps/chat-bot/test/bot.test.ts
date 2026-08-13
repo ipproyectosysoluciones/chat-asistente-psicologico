@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createLogger, type Logger } from "@chatcap/telemetry";
-import { SESSION_STATE } from "@chatcap/shared-types";
+import {
+  createLogger,
+  type EventEmitter,
+  type Logger,
+  type TelemetryEvent,
+} from "@chatcap/telemetry";
+import { ALERT_STATUS, EVENT_TYPE, SESSION_STATE, type AlertEvent } from "@chatcap/shared-types";
 
 import { createBot, PROCESSING_ERROR_TEXT } from "../src/bot";
 import { hashContactKey } from "../src/contact-key";
@@ -83,6 +88,9 @@ describe("createBot (task 4.1 orchestrator)", () => {
         throw new Error("db down");
       },
       setSessionJurisdiction: async () => {
+        throw new Error("unused");
+      },
+      setSessionAiState: async () => {
         throw new Error("unused");
       },
       ping: async () => {},
@@ -258,5 +266,84 @@ describe("createBot (task 4.1 orchestrator)", () => {
 
     expect(flow).toHaveBeenCalledTimes(2);
     expect(provider.sentMessages).toHaveLength(2);
+  });
+});
+
+describe("createBot — raise_red_alert effect (task 4.5, REQ-CHATBOT-5, REQ-ALERT-3/4)", () => {
+  function crisisFlow(): Flow {
+    return {
+      handle: async (message, context: FlowContext): Promise<FlowOutput> => {
+        return {
+          replies: [{ from: message.from, body: "ayuda disponible" }],
+          effects: [
+            { kind: "raise_red_alert", sessionId: context.sessionId, keyword: "crisis" },
+          ],
+          nextState: { state: SESSION_STATE.CRISIS },
+        };
+      },
+    };
+  }
+
+  it("publishes a PII-free red alert event when the flow raises one", async () => {
+    const provider = new MockProvider();
+    const db = new MemoryChatDatabase();
+    const { logger } = captureLogger();
+    const publish = vi.fn(async (_event: TelemetryEvent) => {});
+    const emitter: EventEmitter = { publish };
+    const bot = createBot(
+      { flow: crisisFlow(), provider, database: db },
+      { logger, contactKeySalt: "x".repeat(16), emitter }
+    );
+    await bot.start();
+
+    await provider.emit({
+      type: "message",
+      message: messageFrom("5491100000000", "tengo una crisis"),
+    });
+
+    expect(publish).toHaveBeenCalledTimes(1);
+    const events = publish.mock.calls.flatMap((call) => (call[0] ? [call[0]] : []));
+    expect(events).toHaveLength(1);
+    const event = events[0] as TelemetryEvent;
+    const payload = event.payload as AlertEvent; // the bot builds a typed AlertEvent payload
+    expect(event.type).toBe(EVENT_TYPE.ALERT_RAISED);
+    const sessionId = payload.sessionId;
+    expect(payload).toMatchObject({
+      level: "red",
+      category: "crisis",
+      keyword: "crisis",
+      status: ALERT_STATUS.OPEN,
+      dedupeKey: `${sessionId}:red`,
+    });
+    // REQ-ALERT-6: the alert payload carries ids only — never the phone.
+    expect(JSON.stringify(event)).not.toContain("5491100000000");
+    expect(JSON.stringify(event)).not.toContain("body");
+    // Crisis reply still reaches the user (best-effort < 5s path).
+    expect(provider.sentMessages[0]?.text).toBe("ayuda disponible");
+  });
+
+  it("forces human takeover when the red-alert publish fails (REQ-ALERT-4)", async () => {
+    const provider = new MockProvider();
+    const db = new MemoryChatDatabase();
+    const { logger } = captureLogger();
+    const emitter: EventEmitter = {
+      publish: async () => {
+        throw new Error("redis down");
+      },
+    };
+    const bot = createBot(
+      { flow: crisisFlow(), provider, database: db },
+      { logger, contactKeySalt: "x".repeat(16), emitter }
+    );
+    await bot.start();
+
+    await provider.emit({
+      type: "message",
+      message: messageFrom("5491100000000", "tengo una crisis"),
+    });
+
+    const contactKeyAnon = hashContactKey("5491100000000", "x".repeat(16));
+    const session = await db.findOrCreateSession(contactKeyAnon);
+    expect(session.aiState).toBe("takeover");
   });
 });

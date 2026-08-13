@@ -1,6 +1,7 @@
 import type { Session } from "@chatcap/shared-types";
-import type { Logger } from "@chatcap/telemetry";
+import type { EventEmitter, Logger } from "@chatcap/telemetry";
 
+import { buildAlertRaisedEvent } from "./alerts";
 import { hashContactKey } from "./contact-key";
 import type { ChatDatabase } from "./database/database";
 import { type Flow, type FlowContext, type FlowEffect, type FlowState } from "./flow/flow";
@@ -28,6 +29,13 @@ export interface BotRuntime {
   /** Pepper for contact-key hashing (min 16 chars, per-deploy). */
   contactKeySalt: string;
   stateStore?: FlowStateStore;
+  /**
+   * Redis pub-sub emitter for PII-free alert events (task 4.5). When the
+   * crisis flow raises a red alert and publishing fails, the session is
+   * forced to human takeover so escalation never depends on one channel
+   * (REQ-ALERT-4).
+   */
+  emitter?: EventEmitter;
 }
 
 export interface Bot {
@@ -66,7 +74,38 @@ export function createBot(pillars: BotPillars, runtime: BotRuntime): Bot {
             { jurisdiction: effect.jurisdiction }
           );
           break;
+        case "raise_red_alert":
+          await raiseRedAlert(effect);
+          break;
       }
+    }
+  }
+
+  async function raiseRedAlert(effect: {
+    sessionId: string;
+    keyword: string;
+  }): Promise<void> {
+    // REQ-ALERT-4: escalation must not depend on WhatsApp. If the alert
+    // cannot be published, hand the session to a human (AI disabled).
+    if (runtime.emitter === undefined) {
+      runtime.logger.error("chat: red alert skipped; no event emitter configured");
+      await pillars.database.setSessionAiState(effect.sessionId, "takeover");
+      return;
+    }
+    try {
+      await runtime.emitter.publish(
+        buildAlertRaisedEvent({
+          sessionId: effect.sessionId,
+          level: "red",
+          category: "crisis",
+          keyword: effect.keyword,
+        })
+      );
+    } catch (error) {
+      runtime.logger.error("chat: red alert raise failed; forcing takeover", {
+        error: String(error),
+      });
+      await pillars.database.setSessionAiState(effect.sessionId, "takeover");
     }
   }
 

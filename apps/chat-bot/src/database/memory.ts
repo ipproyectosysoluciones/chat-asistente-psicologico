@@ -56,6 +56,19 @@ export class MemoryChatDatabase implements ChatDatabase {
     return updated;
   }
 
+  async setSessionAiState(
+    sessionId: string,
+    aiState: Session["aiState"]
+  ): Promise<Session> {
+    const current = this.sessions.get(sessionId);
+    if (current === undefined) {
+      throw new Error(`memory-chat-db: session not found: ${sessionId}`);
+    }
+    const updated: Session = { ...current, aiState };
+    this.sessions.set(sessionId, updated);
+    return updated;
+  }
+
   async ping(): Promise<void> {
     this.pingCount += 1;
   }

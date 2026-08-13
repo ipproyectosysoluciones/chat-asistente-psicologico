@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Pool, type PoolClient } from "pg";
 
 import { runMigrations } from "../src/migrate";
-import { upsertSession, setSessionPersistence, getSession, setSessionConsentState } from "../src/repositories/sessions";
+import { upsertSession, setSessionPersistence, getSession, setSessionConsentState, setSessionAiState } from "../src/repositories/sessions";
 import {
   createConsentRecord,
   findActiveConsentBySession,
@@ -107,6 +107,16 @@ run("repositories vs test PG", () => {
     const asAnon = await setSessionPersistence(pool, first.id, "anonymous");
     expect(asAnon.purgeAt).toBeDefined();
     await expect(getSession(pool, first.id)).resolves.toMatchObject({ id: first.id });
+  });
+
+  it("sessions: ai_state takeover round-trip (REQ-ALERT-4)", async () => {
+    const session = await upsertSession(pool, { contactKeyAnon: "anon-key-ai-1", jurisdiction: "CO" });
+    expect(session.aiState).toBe("auto");
+    const forced = await setSessionAiState(pool, session.id, "takeover");
+    expect(forced.aiState).toBe("takeover");
+    await expect(getSession(pool, session.id)).resolves.toMatchObject({
+      aiState: "takeover",
+    });
   });
 
   it("consent: create, find active by session, deactivate (REQ-CONSENT-4)", async () => {

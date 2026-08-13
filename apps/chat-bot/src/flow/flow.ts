@@ -40,6 +40,12 @@ export type FlowEffect =
       kind: "flag_legal_review";
       sessionId: string;
       jurisdiction: string;
+    }
+  | {
+      kind: "raise_red_alert";
+      sessionId: string;
+      /** Matched crisis keyword — PII-free (REQ-ALERT-6, task 4.5). */
+      keyword: string;
     };
 
 export interface FlowContext {

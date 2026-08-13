@@ -10,6 +10,7 @@ export {
   setSessionPersistence,
   setSessionJurisdiction,
   setSessionConsentState,
+  setSessionAiState,
   touchSessionActivity,
   type SessionInput,
 } from "./repositories/sessions";

@@ -15,7 +15,7 @@ import {
   resolveAlert,
   touchAlert,
 } from "../src/repositories/alerts";
-import { setSessionConsentState, setSessionJurisdiction } from "../src/repositories/sessions";
+import { setSessionAiState, setSessionConsentState, setSessionJurisdiction } from "../src/repositories/sessions";
 import type { DbQueryable } from "../src/repositories/db";
 import { findUserRole } from "../src/repositories/users";
 
@@ -413,6 +413,40 @@ describe("sessions repo: consent_state (REQ-CONSENT-2)", () => {
   it("throws when the session id does not exist", async () => {
     const { db } = fakeDb([{ rows: [], rowCount: 0 }]);
     await expect(setSessionConsentState(db, "missing", "accepted")).rejects.toThrow(
+      "sessions"
+    );
+  });
+});
+
+describe("sessions repo: ai_state takeover (REQ-ALERT-4, REQ-DASH-3)", () => {
+  const sessionRow = (overrides: Record<string, unknown> = {}) => ({
+    id: "sess-1",
+    contact_key_anon: "anon-1",
+    jurisdiction: "CO",
+    persistence_class: "anonymous",
+    consent_state: "accepted",
+    ai_state: "takeover",
+    created_at: new Date("2026-01-01T00:00:00Z"),
+    last_activity_at: new Date("2026-01-01T00:00:00Z"),
+    purge_at: new Date("2026-01-02T00:00:00Z"),
+    ...overrides,
+  });
+
+  it("forces the session to takeover and returns the session", async () => {
+    const { db, sqlTexts, paramLists } = fakeDb([
+      { rows: [sessionRow()], rowCount: 1 },
+    ]);
+    const session = await setSessionAiState(db, "sess-1", "takeover");
+    expect(session.aiState).toBe("takeover");
+    expect(sqlTexts[0]).toMatch(/UPDATE sessions/);
+    expect(sqlTexts[0]).toMatch(/ai_state = \$2/);
+    expect(sqlTexts[0]).toMatch(/WHERE id = \$1/);
+    expect(paramLists[0]).toEqual(["sess-1", "takeover"]);
+  });
+
+  it("throws when the session id does not exist", async () => {
+    const { db } = fakeDb([{ rows: [], rowCount: 0 }]);
+    await expect(setSessionAiState(db, "missing", "takeover")).rejects.toThrow(
       "sessions"
     );
   });

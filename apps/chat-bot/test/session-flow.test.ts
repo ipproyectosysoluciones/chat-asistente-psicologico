@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { SESSION_STATE } from "@chatcap/shared-types";
 
 import { type FlowContext } from "../src/flow/flow";
+import { createCrisisFlow } from "../src/flow/crisis";
 import { createJurisdictionFlow } from "../src/flow/jurisdiction";
 import { createMenuFlow, MENU_TEXT, WELCOME_TEXT } from "../src/flow/menu";
 import { createSessionFlow } from "../src/flow/session";
@@ -10,9 +11,10 @@ import { type GeoResolver } from "../src/geo/resolver";
 import { messageFrom } from "../src/provider/mock";
 
 /**
- * Session flow composition (task 4.3): routes by state — first contact and
- * the jurisdiction conversation go to the jurisdiction flow (no data stored
- * before confirmation), everything else falls back to the menu flow.
+ * Session flow composition (task 4.3, extended 4.5): routes by state — first
+ * contact and the jurisdiction conversation go to the jurisdiction flow (no
+ * data stored before confirmation), everything else falls back to the menu
+ * flow. The crisis guard runs FIRST at every state (REQ-CHATBOT-5).
  */
 
 function geoResolver(country: string | undefined): GeoResolver {
@@ -32,6 +34,7 @@ describe("createSessionFlow (task 4.3 composition)", () => {
   const session = (country?: string) =>
     createSessionFlow({
       menu: createMenuFlow(),
+      crisis: createCrisisFlow(),
       jurisdiction: createJurisdictionFlow({ geoResolver: geoResolver(country) }),
     });
 
@@ -79,5 +82,35 @@ describe("createSessionFlow (task 4.3 composition)", () => {
 
     expect(output.replies[0]?.body).toBe(MENU_TEXT);
     expect(output.nextState).toMatchObject({ state: SESSION_STATE.MENU, jurisdiction: "CO" });
+  });
+
+  it("crisis keyword wins over the menu flow at any state (REQ-CHATBOT-5)", async () => {
+    const output = await session().handle(
+      messageFrom("5491100000000", "me quiero morir"),
+      contextWith({
+        state: SESSION_STATE.TOPIC,
+        geoCountry: "MX",
+      })
+    );
+
+    expect(output.nextState).toMatchObject({ state: SESSION_STATE.CRISIS });
+    expect(output.effects).toEqual([
+      { kind: "raise_red_alert", sessionId: "s1", keyword: "me quiero morir" },
+    ]);
+    expect(output.replies[0]?.body).toContain("Línea de la Vida (México)");
+  });
+
+  it("crisis keyword wins over the jurisdiction confirmation", async () => {
+    const output = await session().handle(
+      messageFrom("5491100000000", "no sé, tengo una crisis"),
+      contextWith({
+        state: SESSION_STATE.AWAITING_JURISDICTION,
+        proposedJurisdiction: "CO",
+        geoCountry: "CO",
+      })
+    );
+
+    expect(output.nextState).toMatchObject({ state: SESSION_STATE.CRISIS });
+    expect(output.effects[0]).toMatchObject({ kind: "raise_red_alert" });
   });
 });
