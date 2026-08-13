@@ -12,6 +12,7 @@ import { createCrisisFlow } from "./flow/crisis";
 import { createJurisdictionFlow } from "./flow/jurisdiction";
 import { createMenuFlow } from "./flow/menu";
 import { createSessionFlow } from "./flow/session";
+import { createTopicFlow } from "./flow/topic";
 import { createGeoResolver } from "./geo/factory";
 import { createProvider } from "./provider/factory";
 
@@ -70,6 +71,7 @@ const bot = createBot(
       jurisdiction: createJurisdictionFlow({
         geoResolver: createGeoResolver(config.geo),
       }),
+      topic: createTopicFlow(),
     }),
     provider: createProvider({
       provider: config.chatbot.provider,
@@ -80,7 +82,13 @@ const bot = createBot(
     }),
     database: new PostgresChatDatabase(pool),
   },
-  { logger, contactKeySalt: config.chatbot.contactKeySalt, emitter }
+  {
+    logger,
+    contactKeySalt: config.chatbot.contactKeySalt,
+    emitter,
+    aiRag,
+    aiEmissionEnabled: config.aiEmissionEnabled,
+  }
 );
 
 async function boot(): Promise<void> {

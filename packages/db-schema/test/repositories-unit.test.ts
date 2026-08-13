@@ -16,6 +16,7 @@ import {
   touchAlert,
 } from "../src/repositories/alerts";
 import { setSessionAiState, setSessionConsentState, setSessionJurisdiction } from "../src/repositories/sessions";
+import { saveHistoryEntry } from "../src/repositories/history";
 import type { DbQueryable } from "../src/repositories/db";
 import { findUserRole } from "../src/repositories/users";
 
@@ -449,5 +450,42 @@ describe("sessions repo: ai_state takeover (REQ-ALERT-4, REQ-DASH-3)", () => {
     await expect(setSessionAiState(db, "missing", "takeover")).rejects.toThrow(
       "sessions"
     );
+  });
+});
+
+describe("history sink (task 4.6, REQ-CHATBOT-2)", () => {
+  it("is a no-op when the BuilderBot history table does not exist (degraded sink)", async () => {
+    const { db, sqlTexts } = fakeDb([{ rows: [{ exists: false }] }]);
+    await saveHistoryEntry(db, {
+      sessionId: "sess-1",
+      sender: "user",
+      text: "mensaje",
+      persistenceClass: "anonymous",
+    });
+    expect(sqlTexts).toHaveLength(1);
+    expect(sqlTexts[0]).toContain("to_regclass");
+  });
+
+  it("inserts a parameterized row with a jsonb message and persistence metadata", async () => {
+    const { db, sqlTexts, paramLists } = fakeDb([
+      { rows: [{ exists: true }] },
+      { rows: [], rowCount: 1 },
+    ]);
+    await saveHistoryEntry(db, {
+      sessionId: "sess-1",
+      sender: "bot",
+      text: "respuesta",
+      persistenceClass: "hc",
+    });
+    expect(sqlTexts[1]).toMatch(/INSERT INTO history/);
+    expect(sqlTexts[1]).toMatch(/message/);
+    expect(sqlTexts[1]).toMatch(/persistence_class/);
+    expect(sqlTexts[1]).toMatch(/purge_at/);
+    expect(sqlTexts[1]).not.toContain("'" + "respuesta" + "'");
+    const [sessionId, sender, message, persistenceClass] = paramLists[1] ?? [];
+    expect(sessionId).toBe("sess-1");
+    expect(sender).toBe("bot");
+    expect(message).toBe('{"text":"respuesta"}');
+    expect(persistenceClass).toBe("hc");
   });
 });

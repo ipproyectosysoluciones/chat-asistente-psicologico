@@ -2,16 +2,20 @@ import { randomUUID } from "node:crypto";
 
 import type { Session } from "@chatcap/shared-types";
 
-import type { ChatDatabase } from "./database";
+import type { ChatDatabase, HistoryEntry } from "./database";
 
 /**
  * In-memory ChatDatabase double for tests and mock local dev. Mirrors the
  * postgres adapter semantics (find-or-create by contact key, jurisdiction
- * update) without a server, so the full bot pipeline is testable.
+ * update, history sink) without a server, so the full bot pipeline is
+ * testable.
  */
 export class MemoryChatDatabase implements ChatDatabase {
   private readonly sessions = new Map<string, Session>();
   private pingCount = 0;
+
+  /** Persisted conversation turns (REQ-CHATBOT-2) — inspectable in tests. */
+  readonly history: HistoryEntry[] = [];
 
   get pingCountValue(): number {
     return this.pingCount;
@@ -67,6 +71,10 @@ export class MemoryChatDatabase implements ChatDatabase {
     const updated: Session = { ...current, aiState };
     this.sessions.set(sessionId, updated);
     return updated;
+  }
+
+  async saveHistoryEntry(entry: HistoryEntry): Promise<void> {
+    this.history.push(entry);
   }
 
   async ping(): Promise<void> {

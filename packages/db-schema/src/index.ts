@@ -64,4 +64,8 @@ export {
   type PurgeOptions,
   type PurgeResult,
 } from "./repositories/purge";
+export {
+  saveHistoryEntry,
+  type HistoryEntry,
+} from "./repositories/history";
 export { findUserRole } from "./repositories/users";

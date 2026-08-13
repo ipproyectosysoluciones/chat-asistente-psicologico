@@ -33,6 +33,7 @@ import {
   rollbackBatch,
 } from "../src/repositories/reencryption";
 import { purgeAnonymousSessions } from "../src/repositories/purge";
+import { saveHistoryEntry } from "../src/repositories/history";
 import { findUserRole } from "../src/repositories/users";
 
 const execFileAsync = promisify(execFile);
@@ -117,6 +118,46 @@ run("repositories vs test PG", () => {
     await expect(getSession(pool, session.id)).resolves.toMatchObject({
       aiState: "takeover",
     });
+  });
+
+  it("history: absent BuilderBot table is a silent no-op; present table persists rows (task 4.6)", async () => {
+    const session = await upsertSession(pool, { contactKeyAnon: "anon-key-hist-1", jurisdiction: "AR" });
+
+    await saveHistoryEntry(pool, {
+      sessionId: session.id,
+      sender: "user",
+      text: "mensaje",
+      persistenceClass: "anonymous",
+    });
+
+    await pool.query(
+      `CREATE TABLE IF NOT EXISTS public.history (
+        id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+        session_id uuid NOT NULL,
+        sender text NOT NULL,
+        message jsonb NOT NULL,
+        persistence_class text NOT NULL DEFAULT 'anonymous',
+        purge_at timestamptz,
+        created_at timestamptz NOT NULL DEFAULT now()
+      );`
+    );
+
+    await saveHistoryEntry(pool, {
+      sessionId: session.id,
+      sender: "bot",
+      text: "respuesta",
+      persistenceClass: "anonymous",
+    });
+
+    const { rows } = await pool.query<{ sender: string; message: { text: string } }>(
+      `SELECT sender, message FROM history WHERE session_id = $1;`,
+      [session.id]
+    );
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.sender).toBe("bot");
+    expect(rows[0]?.message).toEqual({ text: "respuesta" });
+
+    await pool.query(`DROP TABLE IF EXISTS public.history;`);
   });
 
   it("consent: create, find active by session, deactivate (REQ-CONSENT-4)", async () => {

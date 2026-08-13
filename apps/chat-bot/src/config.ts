@@ -12,6 +12,8 @@ export interface ChatBotConfig {
   logLevel: "fatal" | "error" | "warn" | "info" | "debug" | "trace" | "silent";
   databaseUrl: string;
   redisUrl: string;
+  /** Emission kill switch (AI_EMISSION_ENABLED): false → human-only. */
+  aiEmissionEnabled: boolean;
   chatbot: {
     provider: "baileys" | "meta";
     baileysSessionDir: string;
@@ -35,6 +37,7 @@ export function fromAppConfig(config: AppConfig): ChatBotConfig {
     logLevel: config.logLevel,
     databaseUrl: config.databaseUrl,
     redisUrl: config.redisUrl,
+    aiEmissionEnabled: config.aiEmissionEnabled,
     chatbot: {
       provider: config.chatbot.provider,
       baileysSessionDir: config.chatbot.baileysSessionDir,

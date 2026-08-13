@@ -1,12 +1,13 @@
 import type { Session } from "@chatcap/shared-types";
 import type { DbQueryable } from "@chatcap/db-schema";
 import {
+  saveHistoryEntry,
   setSessionAiState,
   setSessionJurisdiction,
   upsertSession,
 } from "@chatcap/db-schema";
 
-import type { ChatDatabase } from "./database";
+import type { ChatDatabase, HistoryEntry } from "./database";
 
 /**
  * PostgreSQL ChatDatabase adapter over the shared db-schema repositories
@@ -32,6 +33,10 @@ export class PostgresChatDatabase implements ChatDatabase {
     aiState: Session["aiState"]
   ): Promise<Session> {
     return setSessionAiState(this.db, sessionId, aiState);
+  }
+
+  saveHistoryEntry(entry: HistoryEntry): Promise<void> {
+    return saveHistoryEntry(this.db, entry);
   }
 
   async ping(): Promise<void> {

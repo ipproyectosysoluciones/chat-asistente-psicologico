@@ -8,6 +8,7 @@ import {
   createMenuFlow,
   isMenuKeyword,
   MENU_TEXT,
+  TOPIC_ENTRY_TEXT,
   WELCOME_TEXT,
 } from "../src/flow/menu";
 import { type FlowContext } from "../src/flow/flow";
@@ -90,6 +91,21 @@ describe("createMenuFlow (task 4.2, REQ-CHATBOT-3)", () => {
     expect(output.replies).toHaveLength(1);
     expect(output.replies[0]?.body).toBe(CHOOSE_OPTION_TEXT);
     expect(output.nextState).toEqual(priorState);
+    expect(output.effects).toEqual([]);
+  });
+
+  it("routes the support-topics option into the topic state (task 4.6)", async () => {
+    const flow = createMenuFlow();
+    const priorState = { state: SESSION_STATE.MENU, jurisdiction: "CO" };
+
+    const output = await flow.handle(
+      messageFrom("5491100000000", "1"),
+      contextWith({ state: priorState })
+    );
+
+    expect(output.replies).toHaveLength(1);
+    expect(output.replies[0]?.body).toBe(TOPIC_ENTRY_TEXT);
+    expect(output.nextState).toMatchObject({ state: SESSION_STATE.TOPIC, jurisdiction: "CO" });
     expect(output.effects).toEqual([]);
   });
 });

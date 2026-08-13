@@ -25,6 +25,9 @@ export const MENU_TEXT = [
 export const CHOOSE_OPTION_TEXT =
   "Por favor, elegí una de las opciones del menú (1, 2 o 3) o escribí “menú” para verlo de nuevo.";
 
+export const TOPIC_ENTRY_TEXT =
+  "Decime con tus palabras qué tema te gustaría explorar y te comparto información de apoyo.";
+
 const MENU_KEYWORDS = new Set(["menu", "menú"]);
 
 /** Normalized menu-keyword check (case/whitespace insensitive). */
@@ -53,6 +56,19 @@ export function createMenuFlow(): Flow {
         ],
         effects: [],
         nextState: { state: SESSION_STATE.MENU },
+      };
+    }
+
+    // "1. Temas de apoyo" (task 4.6): enter the TOPIC state; the next message
+    // is processed by the ai-rag service through the rag_process effect.
+    if (
+      context.state.state === SESSION_STATE.MENU &&
+      message.body.trim() === "1"
+    ) {
+      return {
+        replies: [{ from: message.from, body: TOPIC_ENTRY_TEXT }],
+        effects: [],
+        nextState: { ...context.state, state: SESSION_STATE.TOPIC },
       };
     }
 

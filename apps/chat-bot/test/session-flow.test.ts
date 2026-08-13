@@ -7,6 +7,7 @@ import { createCrisisFlow } from "../src/flow/crisis";
 import { createJurisdictionFlow } from "../src/flow/jurisdiction";
 import { createMenuFlow, MENU_TEXT, WELCOME_TEXT } from "../src/flow/menu";
 import { createSessionFlow } from "../src/flow/session";
+import { createTopicFlow } from "../src/flow/topic";
 import { type GeoResolver } from "../src/geo/resolver";
 import { messageFrom } from "../src/provider/mock";
 
@@ -36,6 +37,7 @@ describe("createSessionFlow (task 4.3 composition)", () => {
       menu: createMenuFlow(),
       crisis: createCrisisFlow(),
       jurisdiction: createJurisdictionFlow({ geoResolver: geoResolver(country) }),
+      topic: createTopicFlow(),
     });
 
   it("routes first contact to welcome, menu and the jurisdiction proposal", async () => {
@@ -112,5 +114,33 @@ describe("createSessionFlow (task 4.3 composition)", () => {
 
     expect(output.nextState).toMatchObject({ state: SESSION_STATE.CRISIS });
     expect(output.effects[0]).toMatchObject({ kind: "raise_red_alert" });
+  });
+
+  it("routes TOPIC-state messages to the topic flow (task 4.6, REQ-CHATBOT-2)", async () => {
+    const output = await session().handle(
+      messageFrom("5491100000000", "¿qué es la ansiedad?"),
+      contextWith({ state: SESSION_STATE.TOPIC, jurisdiction: "CO" })
+    );
+
+    expect(output.effects).toEqual([
+      {
+        kind: "rag_process",
+        sessionId: "s1",
+        to: "5491100000000",
+        message: "¿qué es la ansiedad?",
+      },
+    ]);
+    expect(output.nextState).toMatchObject({ state: SESSION_STATE.TOPIC, jurisdiction: "CO" });
+  });
+
+  it("menu keyword in TOPIC state re-enters the menu, not RAG (task 4.6)", async () => {
+    const output = await session().handle(
+      messageFrom("5491100000000", "menú"),
+      contextWith({ state: SESSION_STATE.TOPIC, jurisdiction: "CO" })
+    );
+
+    expect(output.replies[0]?.body).toBe(MENU_TEXT);
+    expect(output.nextState).toMatchObject({ state: SESSION_STATE.MENU, jurisdiction: "CO" });
+    expect(output.effects).toEqual([]);
   });
 });

@@ -46,6 +46,14 @@ export type FlowEffect =
       sessionId: string;
       /** Matched crisis keyword — PII-free (REQ-ALERT-6, task 4.5). */
       keyword: string;
+    }
+  | {
+      kind: "rag_process";
+      sessionId: string;
+      /** Recipient of the grounded emission (the original sender). */
+      to: string;
+      /** User message to process via ai-rag (task 4.6, REQ-CHATBOT-2). */
+      message: string;
     };
 
 export interface FlowContext {
