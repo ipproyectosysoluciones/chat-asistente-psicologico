@@ -20,12 +20,14 @@
     "@chatcap/telemetry": "workspace:*",
     "express": "catalog:",
     "ioredis": "catalog:",
+    "node-cron": "catalog:",
     "pg": "catalog:",
     "qrcode": "catalog:"
   },
   "devDependencies": {
     "@types/express": "catalog:",
     "@types/node": "catalog:",
+    "@types/node-cron": "catalog:",
     "@types/pg": "catalog:",
     "@types/qrcode": "catalog:",
     "typescript": "catalog:",

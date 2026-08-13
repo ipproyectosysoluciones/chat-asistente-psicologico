@@ -15,6 +15,7 @@ import { createSessionFlow } from "./flow/session";
 import { createTopicFlow } from "./flow/topic";
 import { createGeoResolver } from "./geo/factory";
 import { createProvider } from "./provider/factory";
+import { createPurgeCron } from "./purge";
 
 /**
  * Composition root (task 4.1): validates env via the shared config package,
@@ -63,6 +64,10 @@ const app = createApp({
   },
 });
 
+// Anonymous purge job (task 4.8, REQ-CHATBOT-9): 24–48 h cleanup contract via
+// the db-schema batched purge repository; HC rows are untouched.
+const purgeCron = createPurgeCron({ db: pool, logger });
+
 const bot = createBot(
   {
     flow: createSessionFlow({
@@ -93,6 +98,7 @@ const bot = createBot(
 
 async function boot(): Promise<void> {
   await bot.start();
+  purgeCron.start();
   app.listen(config.port, () => {
     logger.info("chat-bot service listening", { port: config.port });
   });
@@ -107,6 +113,7 @@ boot().catch((error: unknown) => {
 
 async function shutdown(signal: string): Promise<void> {
   logger.info("shutting down", { signal });
+  purgeCron.stop();
   await bot.stop();
   await pool.end();
   redis.disconnect();

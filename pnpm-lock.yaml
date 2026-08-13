@@ -12,6 +12,9 @@ catalogs:
     '@types/node':
       specifier: ^24.0.0
       version: 24.13.3
+    '@types/node-cron':
+      specifier: ^3.0.11
+      version: 3.0.11
     '@types/pg':
       specifier: ^8.11.0
       version: 8.21.0
@@ -24,6 +27,9 @@ catalogs:
     ioredis:
       specifier: ^5.4.0
       version: 5.11.1
+    node-cron:
+      specifier: ^3.0.3
+      version: 3.0.3
     node-pg-migrate:
       specifier: ^7.9.0
       version: 7.9.1
@@ -132,6 +138,9 @@ importers:
       ioredis:
         specifier: 'catalog:'
         version: 5.11.1
+      node-cron:
+        specifier: 'catalog:'
+        version: 3.0.3
       pg:
         specifier: 'catalog:'
         version: 8.22.0
@@ -145,6 +154,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.13.3
+      '@types/node-cron':
+        specifier: 'catalog:'
+        version: 3.0.11
       '@types/pg':
         specifier: 'catalog:'
         version: 8.21.0
@@ -691,6 +703,9 @@ packages:
   '@types/http-errors@2.0.5':
     resolution: {integrity: sha512-r8Tayk8HJnX0FztbZN7oVqGccWgw98T/0neJphO91KkmOzug1KkofZURD4UaD5uH8AqcFLfdPErnBod0u71/qg==}
 
+  '@types/node-cron@3.0.11':
+    resolution: {integrity: sha512-0ikrnug3/IyneSHqCBeslAhlK2aBfYek1fGo4bP4QnZPmiqSGRK+Oy7ZMisLWkesffJvQ1cqAcBnJC+8+nxIAg==}
+
   '@types/node@24.13.3':
     resolution: {integrity: sha512-Dh8vAsV36ig5wa9OX4pXvMc9D3Veibfw2wix0CUwYODLD8nkj9UsLjASr49nPg+2eKzxhBV+v7L8pXvT4e639Q==}
 
@@ -1122,6 +1137,10 @@ packages:
     resolution: {integrity: sha512-8Ofs/AUQh8MaEcrlq5xOX0CQ9ypTF5dl78mjlMNfOK08fzpgTHQRQPBxcPlEtIw0yRpws+Zo/3r+5WRby7u3Gg==}
     engines: {node: '>= 0.6'}
 
+  node-cron@3.0.3:
+    resolution: {integrity: sha512-dOal67//nohNgYWb+nWmg5dkFdIwDm8EpeGYMekPMrngV3637lqnX0lbUcCtgibHTz6SEz7DAIjKvKDFYCnO1A==}
+    engines: {node: '>=6.0.0'}
+
   node-pg-migrate@7.9.1:
     resolution: {integrity: sha512-6z4OSN27ye8aYdX9ZU7NN2PTI5pOp34hTr+22Ej12djIYECq++gT7LPLZVOQXEeVCBOZQLqf87kC3Y36G434OQ==}
     engines: {node: '>=18.19.0'}
@@ -1469,6 +1488,11 @@ packages:
   unpipe@1.0.0:
     resolution: {integrity: sha512-pjy2bYhSsufwWlKwPc+l3cN7+wuJlK6uz0YdJEOlQDbl6jo/YlPi4mb8agUkVC8BF7V8NuzeyPNqRksA3hztKQ==}
     engines: {node: '>= 0.8'}
+
+  uuid@8.3.2:
+    resolution: {integrity: sha512-+NYs2QeMWy+GWFOEm9xnn6HCDp0l7QBD7ml8zLUmJ+93Q5NF0NocErnwkTkXVFNiX3/fpC6afS8Dhb/gz7R7eg==}
+    deprecated: uuid@10 and below is no longer supported.  For ESM codebases, update to uuid@latest.  For CommonJS codebases, use uuid@11 (but be aware this version will likely be deprecated in 2028).
+    hasBin: true
 
   vary@1.1.2:
     resolution: {integrity: sha512-BNGbWLfd0eUPabhkXUVm0j8uuvREyTh5ovRa/dyow/BqAbZJyC+5fU+IzQOzmAKzYqYRAISoRhdQr3eIZ/PXqg==}
@@ -1821,6 +1845,8 @@ snapshots:
       '@types/serve-static': 2.2.0
 
   '@types/http-errors@2.0.5': {}
+
+  '@types/node-cron@3.0.11': {}
 
   '@types/node@24.13.3':
     dependencies:
@@ -2300,6 +2326,10 @@ snapshots:
 
   negotiator@1.0.0: {}
 
+  node-cron@3.0.3:
+    dependencies:
+      uuid: 8.3.2
+
   node-pg-migrate@7.9.1(@types/pg@8.21.0)(pg@8.22.0):
     dependencies:
       glob: 11.0.3
@@ -2685,6 +2715,8 @@ snapshots:
   undici-types@7.18.2: {}
 
   unpipe@1.0.0: {}
+
+  uuid@8.3.2: {}
 
   vary@1.1.2: {}
 
