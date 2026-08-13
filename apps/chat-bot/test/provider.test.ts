@@ -1,7 +1,12 @@
 import { describe, expect, it, vi } from "vitest";
 
 import { messageFrom, MockProvider } from "../src/provider/mock";
-import { BaileysProvider, ProviderConfigurationError, ProviderNotConnectedError } from "../src/provider/baileys";
+import {
+  BaileysProvider,
+  ProviderConfigurationError,
+  ProviderNotConnectedError,
+  type BaileysConnection,
+} from "../src/provider/baileys";
 import { MetaProvider } from "../src/provider/meta";
 import { createProvider } from "../src/provider/factory";
 import type { ChatProviderEvent } from "../src/provider/provider";
@@ -48,13 +53,38 @@ describe("MockProvider (task 4.1 test double)", () => {
 });
 
 describe("BaileysProvider (task 4.1 scaffold)", () => {
+  const stubConnection = (): BaileysConnection => {
+    let connected = false;
+    return {
+      connect: async () => {
+        connected = true;
+      },
+      disconnect: async () => {
+        connected = false;
+      },
+      keepAlive: async () => connected,
+      onUpdate: () => undefined,
+      onMessage: () => undefined,
+    };
+  };
+
   it("rejects boot with an empty session dir", async () => {
     const provider = new BaileysProvider({ sessionDir: "   " });
     await expect(provider.start()).rejects.toBeInstanceOf(ProviderConfigurationError);
   });
 
-  it("connects when a session dir is provided", async () => {
+  it("rejects boot without a connection driver (wired in 4.7)", async () => {
     const provider = new BaileysProvider({ sessionDir: "/data/baileys" });
+    await expect(provider.start()).rejects.toBeInstanceOf(
+      ProviderConfigurationError
+    );
+  });
+
+  it("connects when a session dir and driver are provided", async () => {
+    const provider = new BaileysProvider({
+      sessionDir: "/data/baileys",
+      connection: stubConnection(),
+    });
     await provider.start();
     expect(await provider.isConnected()).toBe(true);
   });
@@ -67,7 +97,10 @@ describe("BaileysProvider (task 4.1 scaffold)", () => {
   });
 
   it("dispatches SDK events to the handler after start", async () => {
-    const provider = new BaileysProvider({ sessionDir: "/data/baileys" });
+    const provider = new BaileysProvider({
+      sessionDir: "/data/baileys",
+      connection: stubConnection(),
+    });
     await provider.start();
     const seen: ChatProviderEvent[] = [];
     provider.onEvent((event) => {

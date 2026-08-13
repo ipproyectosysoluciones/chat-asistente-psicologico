@@ -1,8 +1,8 @@
-import type { Session } from "@chatcap/shared-types";
+import { ALERT_LEVEL, type ChatMessage, type Session } from "@chatcap/shared-types";
 import type { EventEmitter, Logger } from "@chatcap/telemetry";
 
 import { buildAlertRaisedEvent } from "./alerts";
-import { type AiRagClient, RagUpstreamError } from "./ai-rag-client";
+import { type AiRagClient, type RagOutcome, RagUpstreamError } from "./ai-rag-client";
 import { hashContactKey } from "./contact-key";
 import { type ChatDatabase, type HistoryEntry } from "./database/database";
 import { type Flow, type FlowContext, type FlowEffect, type FlowState } from "./flow/flow";
@@ -127,7 +127,7 @@ export function createBot(pillars: BotPillars, runtime: BotRuntime): Bot {
       return;
     }
 
-    let outcome;
+    let outcome: RagOutcome;
     try {
       outcome = await runtime.aiRag.process({
         sessionId: effect.sessionId,
@@ -223,10 +223,64 @@ export function createBot(pillars: BotPillars, runtime: BotRuntime): Bot {
 
   const handleEvent: ChatEventHandler = async (event: ChatProviderEvent) => {
     if (event.type !== "message") {
-      runtime.logger.debug("provider lifecycle event", { type: event.type });
+      await handleLifecycleEvent(event);
       return;
     }
-    const { from, body, remoteIp } = event.message;
+    await handleInboundMessage(event.message);
+  };
+
+  /**
+   * Provider lifecycle events (task 4.7, REQ-CHATBOT-8). Retriable drops are
+   * handled by the provider's own reconnect loop; here we only log them. An
+   * unrecoverable `auth_failure` escalates through the notifications service
+   * so the supervisor is told on a channel independent of WhatsApp (the
+   * fallback Telegram/Web path, REQ-ALERT-4) — the WhatsApp channel is the
+   * one that just died. Pending history is never lost: the history sink
+   * persists each message before the next is processed, so there is no
+   * in-flight buffer to drop across a reconnect.
+   */
+  async function handleLifecycleEvent(
+    event: Extract<ChatProviderEvent, { type: "auth_failure" | "reconnecting" | "reconnected" }>
+  ): Promise<void> {
+    switch (event.type) {
+      case "auth_failure":
+        await notifySupervisorOfAuthFailure(event.reason);
+        break;
+      case "reconnecting":
+        runtime.logger.info("chat: provider reconnecting");
+        break;
+      case "reconnected":
+        runtime.logger.info("chat: provider reconnected; resuming message processing");
+        break;
+    }
+  }
+
+  async function notifySupervisorOfAuthFailure(reason?: string): Promise<void> {
+    if (runtime.emitter === undefined) {
+      runtime.logger.error(
+        "chat: auth_failure not escalated; no event emitter configured"
+      );
+      return;
+    }
+    try {
+      await runtime.emitter.publish(
+        buildAlertRaisedEvent({
+          sessionId: `provider:${pillars.provider.kind}`,
+          level: ALERT_LEVEL.ORANGE,
+          category: "session",
+          keyword: "auth_failure",
+        })
+      );
+    } catch (error) {
+      runtime.logger.error("chat: auth_failure escalation publish failed", {
+        error: String(error),
+        reason,
+      });
+    }
+  }
+
+  async function handleInboundMessage(message: ChatMessage): Promise<void> {
+    const { from, body, remoteIp } = message;
     const contactKeyAnon = hashContactKey(from, runtime.contactKeySalt);
 
     let session: Session;
@@ -278,7 +332,7 @@ export function createBot(pillars: BotPillars, runtime: BotRuntime): Bot {
       });
       await pillars.provider.sendText(from, PROCESSING_ERROR_TEXT);
     }
-  };
+  }
 
   return {
     async start(): Promise<void> {
