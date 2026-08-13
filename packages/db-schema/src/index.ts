@@ -9,6 +9,7 @@ export {
   getSession,
   setSessionPersistence,
   setSessionJurisdiction,
+  setSessionConsentState,
   touchSessionActivity,
   type SessionInput,
 } from "./repositories/sessions";

@@ -7,6 +7,7 @@ import {
   isQrPayload,
   signQrPayload,
   verifyQrPayload,
+  type QrAuditEntry,
   type QrPayload,
   type QrSignatureStore,
   type StoredQrSignature,
@@ -152,6 +153,7 @@ describe("QR chain of trust (design §6.1 — signing always archives)", () => {
     const signer = new QrSigner({
       store,
       signerKey: Buffer.from(QR_KEY_HEX, "hex"),
+      audit: async () => undefined,
     });
     return { signer, store };
   }
@@ -178,17 +180,30 @@ describe("QR chain of trust (design §6.1 — signing always archives)", () => {
     expect(newest.signature).toBe(second.signature);
   });
 
+  test("chain record ids are UUIDs (qr_signatures.id is a uuid column)", async () => {
+    const { signer, store } = freshSigner();
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+    const signed = await signer.sign({ consentId: CONSENT_ID, termsVersion: 3 });
+    const stored = await store.findByConsentId(CONSENT_ID);
+
+    expect(stored[0]?.id).toMatch(UUID_RE);
+    expect(signed.id).toMatch(UUID_RE);
+  });
+
   test("the archived old QR still verifies with its original key (chain of trust)", async () => {
     const store = new MemorySignatureStore();
     const first = await new QrSigner({
       store,
       signerKey: Buffer.from(QR_KEY_HEX, "hex"),
+      audit: async () => undefined,
     }).sign({ consentId: CONSENT_ID, termsVersion: 3 });
 
     // Second issuance under the same key.
     await new QrSigner({
       store,
       signerKey: Buffer.from(QR_KEY_HEX, "hex"),
+      audit: async () => undefined,
     }).sign({ consentId: CONSENT_ID, termsVersion: 4 });
 
     // Read back: the store now shows the first signature archived (DB semantics).
@@ -253,6 +268,69 @@ describe("QR chain of trust (design §6.1 — signing always archives)", () => {
     expect(result.status).toBe(QR_SIGNATURE_STATUS.ACTIVE);
     expect(result.reason).toBe("signature_match");
   });
+
+  test("every issuance and validation writes an audit entry (REQ-DASH-8)", async () => {
+    const store = new MemorySignatureStore();
+    const auditEntries: QrAuditEntry[] = [];
+    const signer = new QrSigner({
+      store,
+      signerKey: Buffer.from(QR_KEY_HEX, "hex"),
+      audit: async (entry) => {
+        auditEntries.push(entry);
+      },
+    });
+
+    const signed = await signer.sign({
+      consentId: CONSENT_ID,
+      termsVersion: 3,
+      actor: "supervisor:admin-1",
+    });
+    const result = await signer.verify(
+      { payload: signed.payload, signature: signed.signature },
+      { actor: "supervisor:dash-1" }
+    );
+
+    expect(result.valid).toBe(true);
+    expect(auditEntries).toHaveLength(2);
+    expect(auditEntries[0]).toMatchObject({
+      actor: "supervisor:admin-1",
+      consentId: CONSENT_ID,
+      action: "qr_issued",
+      outcome: "success",
+      keyVersion: 1,
+    });
+    expect(auditEntries[1]).toMatchObject({
+      actor: "supervisor:dash-1",
+      consentId: CONSENT_ID,
+      action: "qr_validation",
+      outcome: "success",
+      reason: "signature_match",
+    });
+  });
+
+  test("a failed validation is audited with its failure reason (REQ-DASH-8)", async () => {
+    const store = new MemorySignatureStore();
+    const auditEntries: QrAuditEntry[] = [];
+    const signer = new QrSigner({
+      store,
+      signerKey: Buffer.from(QR_KEY_HEX, "hex"),
+      audit: async (entry) => {
+        auditEntries.push(entry);
+      },
+    });
+    await signer.sign({ consentId: CONSENT_ID, termsVersion: 3 });
+
+    const tampered: QrPayload = { ...payload, termsVersion: 99 };
+    const result = await signer.verify({ payload: tampered, signature: GOOD_SIG });
+
+    expect(result.valid).toBe(false);
+    expect(auditEntries).toHaveLength(2);
+    expect(auditEntries[1]).toMatchObject({
+      action: "qr_validation",
+      outcome: "failure",
+      reason: "invalid_payload",
+    });
+  });
 });
 
 describe("QR encode/decode round-trip (QR delivery path)", () => {
@@ -261,6 +339,7 @@ describe("QR encode/decode round-trip (QR delivery path)", () => {
     const signer = new QrSigner({
       store,
       signerKey: Buffer.from(QR_KEY_HEX, "hex"),
+      audit: async () => undefined,
     });
 
     const signed = await signer.sign({ consentId: CONSENT_ID, termsVersion: 3 });
@@ -276,6 +355,7 @@ describe("QR encode/decode round-trip (QR delivery path)", () => {
     const signer = new QrSigner({
       store,
       signerKey: Buffer.from(QR_KEY_HEX, "hex"),
+      audit: async () => undefined,
     });
 
     const signed = await signer.sign({ consentId: CONSENT_ID, termsVersion: 3 });

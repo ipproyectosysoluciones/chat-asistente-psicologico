@@ -1,4 +1,4 @@
-import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 
 import { QR_SIGNATURE_STATUS, type QrPayload, type QrSignatureStatus } from "@chatcap/shared-types";
 
@@ -32,6 +32,24 @@ export interface QrSignatureStore {
 export interface SignQrOptions {
   consentId: string;
   termsVersion: number;
+  /** Who initiated the issuance (defaults to `system`). */
+  actor?: string;
+}
+
+export type QrAuditAction = "qr_issued" | "qr_validation";
+
+/**
+ * Audit record for a QR lifecycle event (REQ-DASH-8): who/when/why/outcome.
+ * Contains only identifiers and the outcome reason — never health data. The
+ * consuming service persists it (e.g. via `insertAuditEntry`).
+ */
+export interface QrAuditEntry {
+  actor: string;
+  consentId: string;
+  action: QrAuditAction;
+  outcome: "success" | "failure";
+  reason?: string;
+  keyVersion: number;
 }
 
 export type QrVerifyReason =
@@ -50,6 +68,11 @@ export interface QrSignerOptions {
   store: QrSignatureStore;
   signerKey: Buffer;
   keyVersion?: number;
+  /**
+   * Mandatory audit sink (REQ-DASH-8): every issuance and every validation
+   * records who/when/why. There is no un-audited QR path.
+   */
+  audit: (entry: QrAuditEntry) => Promise<void>;
 }
 
 export interface EncodedQr {
@@ -178,12 +201,14 @@ export class QrSigner {
   private readonly store: QrSignatureStore;
   private readonly signerKey: Buffer;
   private readonly keyVersion: number;
+  private readonly audit: (entry: QrAuditEntry) => Promise<void>;
   private lastIssuedAt = 0;
 
   constructor(options: QrSignerOptions) {
     this.store = options.store;
     this.signerKey = options.signerKey;
     this.keyVersion = options.keyVersion ?? 1;
+    this.audit = options.audit;
   }
 
   async sign(options: SignQrOptions): Promise<StoredQrSignature> {
@@ -211,7 +236,9 @@ export class QrSigner {
     };
     const signature = signQrPayload(payload, this.signerKey);
     const record: StoredQrSignature = {
-      id: randomBytes(12).toString("hex"),
+      // UUID on purpose: qr_signatures.id is a uuid column (migration 0001),
+      // and the chain record must round-trip through PostgreSQL (REQ-KEY-7).
+      id: randomUUID(),
       consentId: options.consentId,
       keyVersion: this.keyVersion,
       signature,
@@ -221,26 +248,64 @@ export class QrSigner {
       issuedAt,
     };
     await this.store.insert(record);
+    await this.audit({
+      actor: options.actor ?? "system",
+      consentId: options.consentId,
+      action: "qr_issued",
+      outcome: "success",
+      keyVersion: this.keyVersion,
+    });
     return record;
   }
 
   /**
    * Verifies a presented QR against the consent's chain of trust. Fails hard
    * (never silently passes) when the consent is unknown, the signature was
-   * never issued, or the HMAC does not verify.
+   * never issued, or the HMAC does not verify. Every validation outcome is
+   * audited (REQ-DASH-8), including the failure reason.
    */
-  async verify(input: EncodedQr): Promise<QrVerificationResult> {
+  async verify(
+    input: EncodedQr,
+    context?: { actor?: string }
+  ): Promise<QrVerificationResult> {
     const { payload, signature } = input;
 
     if (!isQrPayload(payload)) {
+      // Safe: the payload is untrusted input that failed the runtime guard;
+      // read it loosely to build an audit entry without trusting its fields.
+      const loose = payload as Record<string, unknown>;
+      await this.audit({
+        actor: context?.actor ?? "system:qr-validator",
+        consentId: typeof loose.consentId === "string" ? loose.consentId : "unknown",
+        action: "qr_validation",
+        outcome: "failure",
+        reason: "invalid_payload",
+        keyVersion: typeof loose.keyVersion === "number" ? loose.keyVersion : 0,
+      });
       return { valid: false, status: QR_SIGNATURE_STATUS.REVOKED, reason: "invalid_payload" };
     }
     if (!verifyQrPayload(payload, signature, this.signerKey)) {
+      await this.audit({
+        actor: context?.actor ?? "system:qr-validator",
+        consentId: payload.consentId,
+        action: "qr_validation",
+        outcome: "failure",
+        reason: "invalid_payload",
+        keyVersion: payload.keyVersion,
+      });
       return { valid: false, status: QR_SIGNATURE_STATUS.REVOKED, reason: "invalid_payload" };
     }
 
     const chain = await this.store.findByConsentId(payload.consentId);
     if (chain.length === 0) {
+      await this.audit({
+        actor: context?.actor ?? "system:qr-validator",
+        consentId: payload.consentId,
+        action: "qr_validation",
+        outcome: "failure",
+        reason: "unknown_consent",
+        keyVersion: payload.keyVersion,
+      });
       return { valid: false, status: QR_SIGNATURE_STATUS.REVOKED, reason: "unknown_consent" };
     }
 
@@ -251,9 +316,25 @@ export class QrSigner {
         record.keyVersion === payload.keyVersion
     );
     if (match === undefined) {
+      await this.audit({
+        actor: context?.actor ?? "system:qr-validator",
+        consentId: payload.consentId,
+        action: "qr_validation",
+        outcome: "failure",
+        reason: "no_chain_entry",
+        keyVersion: payload.keyVersion,
+      });
       return { valid: false, status: QR_SIGNATURE_STATUS.REVOKED, reason: "no_chain_entry" };
     }
 
+    await this.audit({
+      actor: context?.actor ?? "system:qr-validator",
+      consentId: payload.consentId,
+      action: "qr_validation",
+      outcome: "success",
+      reason: "signature_match",
+      keyVersion: payload.keyVersion,
+    });
     return { valid: true, status: match.status, reason: "signature_match" };
   }
 

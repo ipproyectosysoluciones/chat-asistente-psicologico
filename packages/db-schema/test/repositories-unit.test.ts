@@ -15,7 +15,7 @@ import {
   resolveAlert,
   touchAlert,
 } from "../src/repositories/alerts";
-import { setSessionJurisdiction } from "../src/repositories/sessions";
+import { setSessionConsentState, setSessionJurisdiction } from "../src/repositories/sessions";
 import type { DbQueryable } from "../src/repositories/db";
 import { findUserRole } from "../src/repositories/users";
 
@@ -379,6 +379,40 @@ describe("sessions repo: setSessionJurisdiction (REQ-CHATBOT-3)", () => {
   it("throws when the session id does not exist", async () => {
     const { db } = fakeDb([{ rows: [], rowCount: 0 }]);
     await expect(setSessionJurisdiction(db, "missing", "CO")).rejects.toThrow(
+      "sessions"
+    );
+  });
+});
+
+describe("sessions repo: consent_state (REQ-CONSENT-2)", () => {
+  const sessionRow = (overrides: Record<string, unknown> = {}) => ({
+    id: "sess-1",
+    contact_key_anon: "anon-1",
+    jurisdiction: "CO",
+    persistence_class: "anonymous",
+    consent_state: "accepted",
+    ai_state: "auto",
+    created_at: new Date("2026-01-01T00:00:00Z"),
+    last_activity_at: new Date("2026-01-01T00:00:00Z"),
+    purge_at: new Date("2026-01-02T00:00:00Z"),
+    ...overrides,
+  });
+
+  it("marks the session consent_state as accepted", async () => {
+    const { db, sqlTexts, paramLists } = fakeDb([
+      { rows: [sessionRow()], rowCount: 1 },
+    ]);
+    const session = await setSessionConsentState(db, "sess-1", "accepted");
+    expect(session.consentState).toBe("accepted");
+    expect(sqlTexts[0]).toMatch(/UPDATE sessions/);
+    expect(sqlTexts[0]).toMatch(/consent_state = \$2/);
+    expect(sqlTexts[0]).toMatch(/WHERE id = \$1/);
+    expect(paramLists[0]).toEqual(["sess-1", "accepted"]);
+  });
+
+  it("throws when the session id does not exist", async () => {
+    const { db } = fakeDb([{ rows: [], rowCount: 0 }]);
+    await expect(setSessionConsentState(db, "missing", "accepted")).rejects.toThrow(
       "sessions"
     );
   });

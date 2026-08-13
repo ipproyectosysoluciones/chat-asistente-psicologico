@@ -5,7 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { Pool, type PoolClient } from "pg";
 
 import { runMigrations } from "../src/migrate";
-import { upsertSession, setSessionPersistence, getSession } from "../src/repositories/sessions";
+import { upsertSession, setSessionPersistence, getSession, setSessionConsentState } from "../src/repositories/sessions";
 import {
   createConsentRecord,
   findActiveConsentBySession,
@@ -125,6 +125,56 @@ run("repositories vs test PG", () => {
 
     await deactivateConsent(pool, created.id);
     await expect(findActiveConsentBySession(pool, session.id)).resolves.toBeUndefined();
+  });
+
+  it("consent e2e: registry row + session consent_state + QR chain (REQ-CONSENT-2/3/4, REQ-KEY-7)", async () => {
+    const session = await upsertSession(pool, { contactKeyAnon: "anon-key-consent-e2e", jurisdiction: "MX" });
+
+    const created = await createConsentRecord(pool, {
+      sessionId: session.id,
+      jurisdiction: "MX",
+      termsVersion: 1,
+      keyVersion: 2,
+      encryptedPayload: Buffer.from("aes-ciphertext"),
+      integrityHash: "a".repeat(64),
+    });
+    await setSessionConsentState(pool, session.id, "accepted");
+
+    await pool.query(
+      `INSERT INTO qr_signatures (consent_id, key_version, signature, status, payload, issued_at)
+       VALUES ($1, $2, $3, 'active', $4::jsonb, $5);`,
+      [
+        created.id,
+        2,
+        "sig-1",
+        JSON.stringify({ v: 1, consent_id: created.id, terms_version: 1, key_version: 2, iat: 1723230000 }),
+        1723230000,
+      ]
+    );
+
+    const rows = await pool.query<{
+      consent_id: string;
+      payload: Record<string, unknown>;
+      issued_at: number;
+    }>(
+      `SELECT consent_id, payload, issued_at
+         FROM qr_signatures
+        WHERE consent_id = $1 AND status = 'active';`,
+      [created.id]
+    );
+    expect(rows.rows[0]?.consent_id).toBe(created.id);
+    expect(rows.rows[0]?.payload).toMatchObject({
+      v: 1,
+      consent_id: created.id,
+      terms_version: 1,
+      key_version: 2,
+      iat: 1723230000,
+    });
+    // node-postgres returns BIGINT as a string; the QR chain round-trips it.
+    expect(rows.rows[0]?.issued_at).toBe("1723230000");
+
+    const sessionAfter = await getSession(pool, session.id);
+    expect(sessionAfter?.consentState).toBe("accepted");
   });
 
   it("alerts: one-open-alert lifecycle per dedupe key (REQ-ALERT-5/6)", async () => {

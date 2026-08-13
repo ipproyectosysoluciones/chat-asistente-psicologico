@@ -14,16 +14,19 @@
   },
   "dependencies": {
     "@chatcap/config": "workspace:*",
+    "@chatcap/crypto-keys": "workspace:*",
     "@chatcap/db-schema": "workspace:*",
     "@chatcap/shared-types": "workspace:*",
     "@chatcap/telemetry": "workspace:*",
     "express": "catalog:",
-    "pg": "catalog:"
+    "pg": "catalog:",
+    "qrcode": "catalog:"
   },
   "devDependencies": {
     "@types/express": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "catalog:",
+    "@types/qrcode": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

@@ -3,6 +3,12 @@ import { SESSION_STATE } from "@chatcap/shared-types";
 import { KNOWN_COUNTRY_CODES, resolveJurisdiction } from "../jurisdiction";
 import { type GeoResolver } from "../geo/resolver";
 import { type Flow, type FlowContext, type FlowOutput } from "./flow";
+import {
+  containsPhrase,
+  isAffirmation,
+  isNegated,
+  normalizeText,
+} from "./matching";
 
 /**
  * Jurisdiction flow (task 4.3, REQ-CONSENT-1/6): proposes the legal framework
@@ -23,50 +29,12 @@ const CONFIRM_PHRASES = ["sí", "si", "confirmo", "confirmar", "acepto", "acepta
 
 const UNKNOWN_PHRASES = ["no sé", "no se", "no lo sé", "no lo se", "desconozco", "no tengo idea"];
 
-/** Accent-insensitive lowercase normalization for matching user replies. */
-function normalize(input: string): string {
-  return input
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .trim();
-}
-
-/**
- * Negation prefixes that MUST win over any affirmative phrase (consent flow —
- * REQ-CONSENT-1/6). "no estoy de acuerdo", "no acepto", "no confirmo" are
- * refusals, never consent.
- */
-const NEGATION_PREFIXES = ["no ", "nop ", "tampoco "];
-
-/** Token-boundary match: `si` inside "sindrome" must NOT confirm. */
-function hasPhrase(input: string, phrase: string): boolean {
-  const words = normalize(input).split(/[^a-z0-9]+/).filter(Boolean);
-  const phraseWords = normalize(phrase).split(/[^a-z0-9]+/).filter(Boolean);
-  if (phraseWords.length === 0) {
-    return false;
-  }
-  return words.some((_, i) =>
-    phraseWords.every((word, j) => words[i + j] === word)
-  );
-}
-
-function isNegation(body: string): boolean {
-  const normalized = normalize(body);
-  return NEGATION_PREFIXES.some((prefix) => normalized.startsWith(prefix)) || normalized === "no";
-}
-
 function isConfirmation(body: string): boolean {
-  const normalized = normalize(body);
-  if (isNegation(normalized)) {
-    return false;
-  }
-  return CONFIRM_PHRASES.some((phrase) => hasPhrase(normalized, phrase));
+  return isAffirmation(body, CONFIRM_PHRASES);
 }
 
 function isUnknown(body: string): boolean {
-  const normalized = normalize(body);
-  return UNKNOWN_PHRASES.some((phrase) => normalized.includes(phrase));
+  return UNKNOWN_PHRASES.some((phrase) => containsPhrase(body, phrase));
 }
 
 const COUNTRY_NAME_TO_CODE: Record<string, string> = {
@@ -96,7 +64,7 @@ const COUNTRY_NAME_TO_CODE: Record<string, string> = {
 
 /** Extracts an ISO-3166 alpha-2 country code from a free-text reply. */
 export function parseCountryCode(body: string): string | undefined {
-  const normalized = normalize(body);
+  const normalized = normalizeText(body);
   for (const [name, code] of Object.entries(COUNTRY_NAME_TO_CODE)) {
     if (normalized.includes(name)) {
       return code;
@@ -234,7 +202,7 @@ export function createJurisdictionFlow(deps: JurisdictionFlowDeps): Flow {
 
     // A negation ("no estoy de acuerdo", bare "no") is a refusal to confirm:
     // never treated as consent, falls back to the conservative DEFAULT.
-    if (isNegation(message.body)) {
+    if (isNegated(message.body)) {
       return applyDefault(message, context);
     }
 

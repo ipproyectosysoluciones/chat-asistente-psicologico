@@ -166,3 +166,31 @@ export async function setSessionJurisdiction(
   }
   return mapSession(row);
 }
+
+/**
+ * Marks the session consent_state (REQ-CONSENT-2/4): the consent flow sets
+ * it to `accepted` once the acceptance is encrypted and registered. Only the
+ * CHECK-constrained ConsentState values can be stored; the raw acceptance
+ * (terms version, jurisdiction, key_version) lives in consent_records, not
+ * on the session row.
+ */
+export async function setSessionConsentState(
+  db: DbQueryable,
+  sessionId: string,
+  consentState: Session["consentState"]
+): Promise<Session> {
+  const result = await db.query<SessionRow>(
+    `UPDATE sessions
+        SET consent_state = $2,
+            last_activity_at = now()
+      WHERE id = $1
+      RETURNING id, contact_key_anon, jurisdiction, persistence_class, consent_state,
+                ai_state, created_at, last_activity_at, purge_at;`,
+    [sessionId, consentState]
+  );
+  const row = result.rows[0];
+  if (row === undefined) {
+    throw new Error(`sessions: update failed for ${sessionId}`);
+  }
+  return mapSession(row);
+}

@@ -18,3 +18,5 @@ catalog:
   socket.io-client: ^4.8.3
   "@types/node": ^24.0.0
   "@types/pg": ^8.11.0
+  qrcode: ^1.5.4
+  "@types/qrcode": ^1.5.6
