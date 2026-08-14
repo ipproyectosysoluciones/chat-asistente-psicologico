@@ -77,7 +77,7 @@ One conventional commit per package/app slice, e.g. `feat(db-schema): pgvector m
 - [x] 4.6 Message lifecycle addAction — RAG via `POST /internal/rag/process` inside addAction; gate pass → flowDynamic grounded answer; persist to PostgreSQLDB sink; degraded mode on ai-rag down → human-only (AI_EMISSION_ENABLED kill switch); REQ-CHATBOT-2/7; deps: 4.1, 3.5; AC: grounded-emission + kill-switch tests; tests: vitest + test PG.
 - [x] 4.7 Session persistence + graceful reconnect — Baileys session persistence, keep-alive, auto-reconnect on auth_failure, re-pair QR surface + supervisor fallback notify; REQ-CHATBOT-8; deps: 4.1, 2.3; AC: reconnect handler tests (mock provider events); tests: vitest.
 - [x] 4.8 Anonymous purge cron — node-cron purge job (24–48h contract via db-schema purge repository); HC untouched; REQ-CHATBOT-9, REQ-CONSENT-5; deps: 4.1, 1.6; AC: purge-window bounds + HC-untouched tests; tests: vitest + test PG.
-- [ ] 4.9 HC export + OTP/QR renewal (chat-side) — export decrypted history (audit-logged), OTP request/verify (10-min TTL, 5 attempts), QR renew with archived signature; REQ-CONSENT-5, REQ-KEY-6/7, REQ-DASH-8; deps: 4.4, 1.9; AC: export audit + expired-OTP-refuses-QR tests; tests: vitest + test PG.
+- [x] 4.9 HC export + OTP/QR renewal (chat-side) — export decrypted history (audit-logged), OTP request/verify (10-min TTL, 5 attempts), QR renew with archived signature; REQ-CONSENT-5, REQ-KEY-6/7, REQ-DASH-8; deps: 4.4, 1.9; AC: export audit + expired-OTP-refuses-QR tests; tests: vitest + test PG.
 
 ## Phase 5: dashboard Service
 
