@@ -1,4 +1,4 @@
-import { createHash, randomBytes } from "node:crypto";
+import { createHash, randomBytes, randomUUID } from "node:crypto";
 
 import { OTP_STATUS, type OtpStatus } from "@chatcap/shared-types";
 
@@ -91,7 +91,9 @@ export class OtpService {
   }
 
   async issue(consentId: string, now: Date): Promise<IssueOtpResult> {
-    const id = randomBytes(12).toString("hex");
+    // UUID on purpose: otp_codes.id is a uuid column (migration 0001), so the
+    // issued id must round-trip through PostgreSQL (REQ-KEY-6 persistence).
+    const id = randomUUID();
     const otpCode = randomCode();
     const expiresAt = normalize(now);
     expiresAt.setTime(now.getTime() + this.ttlMs);

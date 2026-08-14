@@ -10,3 +10,4 @@ export {
   type StoredOtp,
   type VerifyOtpResult,
 } from "./otp-service";
+export { PgOtpStore } from "./otp-store-pg";

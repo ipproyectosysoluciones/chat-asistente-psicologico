@@ -84,6 +84,35 @@ export async function findActiveConsentBySession(
   return row === undefined ? undefined : mapConsent(row);
 }
 
+/**
+ * Active consent including its encrypted BYTEA payload (task 4.9): the HC
+ * export decrypts this envelope (REQ-CONSENT-5) to prove the acceptance the
+ * user consents to. Never exposes the payload to un-audited consumers.
+ */
+export interface ConsentRecordWithPayload extends ConsentRecord {
+  encryptedPayload: Buffer;
+}
+
+export async function findActiveConsentWithPayload(
+  db: DbQueryable,
+  sessionId: string
+): Promise<ConsentRecordWithPayload | undefined> {
+  const result = await db.query<ConsentRow & { encrypted_payload: Buffer }>(
+    `SELECT id, session_id, jurisdiction, terms_version, key_version,
+            integrity_hash, active, created_at, encrypted_payload
+       FROM consent_records
+      WHERE session_id = $1 AND active = true
+      ORDER BY created_at DESC
+      LIMIT 1;`,
+    [sessionId]
+  );
+  const row = result.rows[0];
+  if (row === undefined) {
+    return undefined;
+  }
+  return { ...mapConsent(row), encryptedPayload: row.encrypted_payload };
+}
+
 /** Revoke (REQ-CONSENT-4): marks the record inactive, keeping the audit chain. */
 export async function deactivateConsent(
   db: DbQueryable,

@@ -2,6 +2,7 @@ import {
   QrSigner,
   encodePayload,
   type Encryptor,
+  type IssueOtpResult,
   type QrAuditEntry,
   type QrSignatureStore,
   type VerifyOtpResult,
@@ -60,11 +61,13 @@ export class ConsentNotFoundError extends Error {
 }
 
 /**
- * Minimal OTP verifier contract (REQ-KEY-6): a 6-digit code within its
- * 10-minute window. The production wiring uses `OtpService` over the
- * `otp_codes` store; tests inject a double.
+ * OTP gateway for QR renewal (task 4.9 chat-side, REQ-KEY-6): issues a 6-digit
+ * OTP bound to a consent and verifies a presented code within its 10-minute
+ * window. The production wiring uses `OtpService` over the `otp_codes` store;
+ * tests inject a double or the real service with a scripted clock.
  */
-export interface ConsentOtpVerifier {
+export interface QrOtpGateway {
+  issue(consentId: string, now: Date): Promise<IssueOtpResult>;
   verify(id: string, code: string, now?: Date): Promise<VerifyOtpResult>;
 }
 
@@ -74,9 +77,11 @@ export interface ConsentServiceOptions {
   qrSignatureStore: QrSignatureStore;
   qrKey: Buffer;
   renderQr: (content: string) => Promise<string>;
-  otp: ConsentOtpVerifier;
+  otp: QrOtpGateway;
   /** Audit sink for QR lifecycle events (REQ-DASH-8); app wires insertAuditEntry. */
   auditQr: (entry: QrAuditEntry) => Promise<void>;
+  /** Injectable clock for deterministic OTP expiry tests; defaults to real time. */
+  clock?: () => Date;
 }
 
 export interface ConsentAcceptanceInput {
@@ -98,6 +103,14 @@ export interface ConsentAcceptance {
   qrDataUrl: string;
 }
 
+/** OTP requested for a QR renewal (task 4.9 chat-side, REQ-KEY-6). */
+export interface QrRenewalRequest {
+  consentId: string;
+  otpId: string;
+  otpCode: string;
+  expiresAt: string;
+}
+
 export class ConsentService {
   /** Exposed so verifiers/re-encryption can decrypt the stored envelope. */
   readonly encryptor: Encryptor;
@@ -105,8 +118,9 @@ export class ConsentService {
   private readonly qrSignatureStore: QrSignatureStore;
   private readonly qrKey: Buffer;
   private readonly renderQr: (content: string) => Promise<string>;
-  private readonly otp: ConsentOtpVerifier;
+  private readonly otp: QrOtpGateway;
   private readonly auditQr: (entry: QrAuditEntry) => Promise<void>;
+  private readonly clock: () => Date;
   /**
    * One QrSigner per key version: QrSigner guarantees strictly increasing
    * issuedAt per instance, so reusing the instance keeps a renewal distinct
@@ -122,6 +136,7 @@ export class ConsentService {
     this.renderQr = options.renderQr;
     this.otp = options.otp;
     this.auditQr = options.auditQr;
+    this.clock = options.clock ?? (() => new Date());
   }
 
   private signerFor(keyVersion: number): QrSigner {
@@ -193,13 +208,37 @@ export class ConsentService {
   }
 
   /**
+   * QR renewal OTP (task 4.9 chat-side, REQ-KEY-6): issues a fresh OTP bound
+   * to the session's active consent so the flow can send it over the channel.
+   * The code is never persisted in plaintext — only the salted hash (stored by
+   * the OTP gateway). Refuses when no active consent exists.
+   */
+  async requestQrRenewal(input: {
+    sessionId: string;
+  }): Promise<QrRenewalRequest> {
+    const consent = await findActiveConsentBySession(this.db, input.sessionId);
+    if (consent === undefined) {
+      throw new ConsentNotFoundError(
+        `no active consent record for session ${input.sessionId}`
+      );
+    }
+    const issued = await this.otp.issue(consent.id, this.clock());
+    return {
+      consentId: consent.id,
+      otpId: issued.id,
+      otpCode: issued.otpCode,
+      expiresAt: issued.expiresAt,
+    };
+  }
+
+  /**
    * QR renewal (REQ-KEY-6, REQ-CONSENT-5): archives the previous active QR and
    * issues a new one — ONLY after a verified 6-digit OTP within its validity
    * window. The OTP is checked before any DB access, so a refused renewal
    * touches no data and issues nothing.
    */
   async renew(input: ConsentRenewalInput): Promise<ConsentAcceptance> {
-    const otp = await this.otp.verify(input.otpId, input.otpCode, new Date());
+    const otp = await this.otp.verify(input.otpId, input.otpCode, this.clock());
     if (otp.status !== OTP_STATUS.VERIFIED) {
       throw new ConsentOtpError(
         `QR renewal refused: OTP not verified (status=${otp.status})`

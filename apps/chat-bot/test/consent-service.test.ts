@@ -4,9 +4,14 @@ import { describe, expect, it } from "vitest";
 import { EnvKeyProvider } from "@chatcap/config";
 import {
   AesCbcEncryptor,
+  OTP_LIFETIME_MS,
+  OtpService,
   decodePayload,
   StaticKeyMaterialProvider,
+  type IssueOtpResult,
+  type OtpStore,
   type QrSignatureStore,
+  type StoredOtp,
   type StoredQrSignature,
   type VerifyOtpResult,
 } from "@chatcap/crypto-keys";
@@ -18,7 +23,7 @@ import {
   ConsentNotFoundError,
   ConsentOtpError,
   ConsentService,
-  type ConsentOtpVerifier,
+  type QrOtpGateway,
 } from "../src/consent/consent-service";
 
 /**
@@ -112,8 +117,32 @@ function sessionRow() {
   };
 }
 
-function fakeOtp(status: "invalid" | "verified"): ConsentOtpVerifier {
+/** In-memory OtpStore: fixture double for the OTP persistence contract. */
+class MemoryOtpStore implements OtpStore {
+  readonly records = new Map<string, StoredOtp>();
+
+  async insert(record: StoredOtp): Promise<void> {
+    this.records.set(record.id, record);
+  }
+
+  async findById(id: string): Promise<StoredOtp | undefined> {
+    return this.records.get(id);
+  }
+
+  async update(record: StoredOtp): Promise<void> {
+    this.records.set(record.id, record);
+  }
+}
+
+const T0 = new Date("2026-08-09T12:00:00.000Z");
+
+function fakeOtp(status: "invalid" | "verified"): QrOtpGateway {
   return {
+    issue: async (_consentId: string): Promise<IssueOtpResult> => ({
+      id: "otp-1",
+      otpCode: "123456",
+      expiresAt: "2026-08-09T12:10:00.000Z",
+    }),
     verify: async (): Promise<VerifyOtpResult> => ({
       status: status === "verified" ? OTP_STATUS.VERIFIED : "invalid",
     }),
@@ -123,7 +152,8 @@ function fakeOtp(status: "invalid" | "verified"): ConsentOtpVerifier {
 function makeService(
   db: DbQueryable,
   store: MemoryQrSignatureStore,
-  otp: ConsentOtpVerifier = fakeOtp("verified")
+  otp: QrOtpGateway = fakeOtp("verified"),
+  clock?: () => Date
 ) {
   const encryptor = new AesCbcEncryptor(
     new EnvKeyProvider("x".repeat(40)),
@@ -137,6 +167,7 @@ function makeService(
     renderQr: async () => "data:image/png;base64,QR_FAKE",
     otp,
     auditQr: async () => undefined,
+    clock,
   });
   return service;
 }
@@ -361,5 +392,80 @@ describe("ConsentService (task 4.4 consent e2e)", () => {
     // The chain entry is signature metadata (harmless); the consent itself was
     // deactivated and the QR was never rendered/delivered.
     expect(store.records.size).toBe(1);
+  });
+
+  it("issues an OTP bound to the active consent on requestQrRenewal (task 4.9)", async () => {
+    const { db } = fakeDb([{ rows: [consentRow("consent-uuid-1")] }]);
+    const store = new MemoryQrSignatureStore();
+    const service = makeService(db, store);
+
+    const request = await service.requestQrRenewal({ sessionId: "session-1" });
+
+    expect(request.consentId).toBe("consent-uuid-1");
+    expect(request.otpId).toBe("otp-1");
+    expect(request.otpCode).toMatch(/^\d{6}$/);
+    expect(request.expiresAt).toBe("2026-08-09T12:10:00.000Z");
+    // Issuing an OTP must not touch the QR chain.
+    expect(store.records.size).toBe(0);
+  });
+
+  it("refuses OTP issuance when the session has no active consent", async () => {
+    const { db } = fakeDb([{ rows: [] }]);
+    const store = new MemoryQrSignatureStore();
+    const service = makeService(db, store);
+
+    await expect(
+      service.requestQrRenewal({ sessionId: "session-1" })
+    ).rejects.toBeInstanceOf(ConsentNotFoundError);
+    expect(store.records.size).toBe(0);
+  });
+
+  it("refuses the QR renewal for an expired OTP (chat-side loop, REQ-KEY-6)", async () => {
+    const otpStore = new MemoryOtpStore();
+    const otpService = new OtpService({ store: otpStore });
+    let now = T0;
+    const { db } = fakeDb([{ rows: [consentRow("consent-uuid-1")] }]);
+    const store = new MemoryQrSignatureStore();
+    const service = makeService(db, store, otpService, () => now);
+
+    const request = await service.requestQrRenewal({ sessionId: "session-1" });
+
+    now = new Date(T0.getTime() + OTP_LIFETIME_MS + 1);
+    await expect(
+      service.renew({
+        sessionId: "session-1",
+        otpId: request.otpId,
+        otpCode: request.otpCode,
+      })
+    ).rejects.toBeInstanceOf(ConsentOtpError);
+    // A refused renewal issues no QR and touches no data.
+    expect(store.records.size).toBe(0);
+  });
+
+  it("renews the QR after a valid OTP within its window (chat-side loop)", async () => {
+    const otpStore = new MemoryOtpStore();
+    const otpService = new OtpService({ store: otpStore });
+    let now = T0;
+    const { db } = fakeDb([
+      { rows: [consentRow("consent-uuid-1")] }, // request: findActiveConsentBySession
+      { rows: [consentRow("consent-uuid-1")] }, // renew: findActiveConsentBySession
+      { rows: [keyRow()] }, // renew: currentActiveKeyVersion
+    ]);
+    const store = new MemoryQrSignatureStore();
+    const service = makeService(db, store, otpService, () => now);
+
+    const request = await service.requestQrRenewal({ sessionId: "session-1" });
+    now = new Date(T0.getTime() + 60_000);
+    const renewed = await service.renew({
+      sessionId: "session-1",
+      otpId: request.otpId,
+      otpCode: request.otpCode,
+    });
+
+    expect(renewed.consentId).toBe("consent-uuid-1");
+    expect(renewed.qrContent).toMatch(QR_CONTENT_RE);
+    const chain = await store.findByConsentId("consent-uuid-1");
+    expect(chain).toHaveLength(1);
+    expect(chain[0]?.status).toBe("active");
   });
 });

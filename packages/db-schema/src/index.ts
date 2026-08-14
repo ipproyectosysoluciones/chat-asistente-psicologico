@@ -17,12 +17,14 @@ export {
 export {
   createConsentRecord,
   findActiveConsentBySession,
+  findActiveConsentWithPayload,
   deactivateConsent,
   listConsentRowsForReEncryption,
   updateConsentEncryption,
   countConsentRowsByKeyVersion,
   type NewConsentRecord,
   type ReEncryptionRow,
+  type ConsentRecordWithPayload,
 } from "./repositories/consent";
 export {
   createAlert,
@@ -66,6 +68,9 @@ export {
 } from "./repositories/purge";
 export {
   saveHistoryEntry,
+  listHistoryForExport,
   type HistoryEntry,
+  type ExportedHistoryRow,
+  type HistoryMessage,
 } from "./repositories/history";
 export { findUserRole } from "./repositories/users";

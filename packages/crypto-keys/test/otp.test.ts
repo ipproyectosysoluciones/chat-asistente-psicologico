@@ -81,6 +81,19 @@ describe("OTP issue (REQ-KEY-6, design §6.1)", () => {
     // Even the correct code is refused once the OTP is locked.
     expect(await service.verify(id, otpCode, T0)).toEqual({ status: "locked" });
   });
+
+  test("issues a uuid id that fits the otp_codes uuid column (task 4.9 chat-side)", async () => {
+    const store = new MemoryOtpStore();
+    const service = new OtpService({ store });
+
+    const issued = await service.issue("consent_1", T0);
+
+    // otp_codes.id is a uuid column (migration 0001); a 24-char hex id would
+    // fail the insert, so the issued id must be a uuid v4 (REQ-KEY-6 persist).
+    expect(issued.id).toMatch(
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/
+    );
+  });
 });
 
 describe("OTP verify (REQ-KEY-6)", () => {
