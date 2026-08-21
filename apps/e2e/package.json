@@ -1,0 +1,16 @@
+{
+  "name": "@chatcap/e2e",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:e2e": "vitest run --config vitest.e2e.config.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "socket.io-client": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
