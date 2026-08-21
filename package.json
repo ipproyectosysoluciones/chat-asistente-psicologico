@@ -1,0 +1,21 @@
+{
+  "name": "chat-asistente-psicologico",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WhatsApp-first mental-health support assistant (safety-critical MVP). pnpm monorepo: 5 apps + 7 shared packages.",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "packageManager": "pnpm@11.1.1",
+  "scripts": {
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "build": "pnpm -r build",
+    "migrate:up": "pnpm --filter @chatcap/db-schema exec node-pg-migrate up",
+    "migrate:down": "pnpm --filter @chatcap/db-schema exec node-pg-migrate down"
+  },
+  "devDependencies": {
+    "typescript": "catalog:"
+  }
+}
