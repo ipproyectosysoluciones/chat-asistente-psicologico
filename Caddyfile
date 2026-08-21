@@ -1,0 +1,44 @@
+# =============================================================================
+# Chat Asistente Psicológico — Caddy reverse proxy
+#
+# Runs OFFLINE with self-signed certificates via `tls internal` on :443.
+# For a public domain, replace the `:80` / `:443` site addresses with your
+# domain (e.g. `chat.example.com`) and drop `tls internal` so Caddy obtains a
+# trusted Let's Encrypt cert automatically.
+#
+# Route precedence (Caddy `handle` is mutually exclusive, first match wins):
+#   1. /api/v1/rag/process and /internal/*  -> ai-rag:4003
+#   2. /api/v1/documents*                    -> ingestion:4004
+#   3. /webhook*                             -> chat-bot:4001
+#   4. everything else (dashboard UI + API)  -> dashboard:3000
+# notifications is internal-only (no public route) and reached via the
+# private Docker network by other services.
+# =============================================================================
+
+# Shared route table, reused by the :80 and :443 site blocks.
+(route) {
+	handle /api/v1/rag/process {
+		reverse_proxy ai-rag:4003
+	}
+	handle /internal/* {
+		reverse_proxy ai-rag:4003
+	}
+	handle /api/v1/documents* {
+		reverse_proxy ingestion:4004
+	}
+	handle /webhook* {
+		reverse_proxy chat-bot:4001
+	}
+	handle {
+		reverse_proxy dashboard:3000
+	}
+}
+
+:80 {
+	import route
+}
+
+:443 {
+	tls internal
+	import route
+}

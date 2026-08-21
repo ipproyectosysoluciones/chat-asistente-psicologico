@@ -1,0 +1,49 @@
+{
+  "name": "@chatcap/dashboard",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Supervisor dashboard: React 19 + Vite frontend, Express 5 + Socket.io backend, JWT auth with RBAC and audit chain (REQ-DASH-1..3).",
+  "type": "module",
+  "exports": {
+    ".": "./src/server/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "build": "tsc -b tsconfig.json",
+    "build:web": "vite build",
+    "dev": "vite",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@chatcap/config": "workspace:*",
+    "@chatcap/crypto-keys": "workspace:*",
+    "@chatcap/db-schema": "workspace:*",
+    "@chatcap/shared-types": "workspace:*",
+    "@chatcap/telemetry": "workspace:*",
+    "bcryptjs": "catalog:",
+    "ioredis": "catalog:",
+    "express": "catalog:",
+    "pg": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "socket.io": "catalog:",
+    "socket.io-client": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "catalog:",
+    "@testing-library/jest-dom": "catalog:",
+    "@testing-library/react": "catalog:",
+    "@testing-library/user-event": "catalog:",
+    "@types/express": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "catalog:",
+    "jsdom": "catalog:",
+    "typescript": "catalog:",
+    "vite": "catalog:",
+    "vitest": "catalog:"
+  }
+}

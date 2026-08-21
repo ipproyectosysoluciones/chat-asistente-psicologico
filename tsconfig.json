@@ -1,0 +1,12 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./packages/shared-types" },
+    { "path": "./packages/config" },
+    { "path": "./packages/telemetry" },
+    { "path": "./packages/db-schema" },
+    { "path": "./packages/crypto-keys" },
+    { "path": "./packages/llm-client" },
+    { "path": "./packages/validation" }
+  ]
+}

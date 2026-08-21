@@ -1,0 +1,101 @@
+import { randomUUID } from "node:crypto";
+
+import type { Session } from "@chatcap/shared-types";
+
+import type { ChatDatabase, HistoryEntry } from "./database";
+
+/**
+ * In-memory ChatDatabase double for tests and mock local dev. Mirrors the
+ * postgres adapter semantics (find-or-create by contact key, jurisdiction
+ * update, history sink) without a server, so the full bot pipeline is
+ * testable.
+ */
+export class MemoryChatDatabase implements ChatDatabase {
+  private readonly sessions = new Map<string, Session>();
+  /** Contact-phone map (task 5.3): seeded per session in tests, mirroring the
+   * postgres adapter's BuilderBot-contacts resolution. The raw phone never
+   * leaves the double. */
+  private readonly phones = new Map<string, string>();
+  private pingCount = 0;
+
+  /** Persisted conversation turns (REQ-CHATBOT-2) — inspectable in tests. */
+  readonly history: HistoryEntry[] = [];
+
+  get pingCountValue(): number {
+    return this.pingCount;
+  }
+
+  get sessionCount(): number {
+    return this.sessions.size;
+  }
+
+  async findOrCreateSession(contactKeyAnon: string): Promise<Session> {
+    const existing = [...this.sessions.values()].find(
+      (session) => session.contactKeyAnon === contactKeyAnon
+    );
+    if (existing !== undefined) {
+      return { ...existing, lastActivityAt: new Date().toISOString() };
+    }
+    const now = new Date();
+    const session: Session = {
+      id: randomUUID(),
+      contactKeyAnon,
+      persistenceClass: "anonymous",
+      consentState: "notice_shown",
+      aiState: "auto",
+      createdAt: now.toISOString(),
+      lastActivityAt: now.toISOString(),
+      purgeAt: new Date(now.getTime() + 24 * 60 * 60 * 1000).toISOString(),
+    };
+    this.sessions.set(session.id, session);
+    return session;
+  }
+
+  async setSessionJurisdiction(
+    sessionId: string,
+    jurisdiction: string
+  ): Promise<Session> {
+    const current = this.sessions.get(sessionId);
+    if (current === undefined) {
+      throw new Error(`memory-chat-db: session not found: ${sessionId}`);
+    }
+    const updated: Session = { ...current, jurisdiction };
+    this.sessions.set(sessionId, updated);
+    return updated;
+  }
+
+  async setSessionAiState(
+    sessionId: string,
+    aiState: Session["aiState"]
+  ): Promise<Session> {
+    const current = this.sessions.get(sessionId);
+    if (current === undefined) {
+      throw new Error(`memory-chat-db: session not found: ${sessionId}`);
+    }
+    const updated: Session = { ...current, aiState };
+    this.sessions.set(sessionId, updated);
+    return updated;
+  }
+
+  async getSession(sessionId: string): Promise<Session | undefined> {
+    const current = this.sessions.get(sessionId);
+    return current === undefined ? undefined : { ...current };
+  }
+
+  async resolveContactPhone(sessionId: string): Promise<string | undefined> {
+    return this.phones.get(sessionId);
+  }
+
+  /** Seeds a contact phone for a session (task 5.3). Test/local-dev only. */
+  seedContactPhone(sessionId: string, phone: string): void {
+    this.phones.set(sessionId, phone);
+  }
+
+  async saveHistoryEntry(entry: HistoryEntry): Promise<void> {
+    this.history.push(entry);
+  }
+
+  async ping(): Promise<void> {
+    this.pingCount += 1;
+  }
+}
