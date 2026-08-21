@@ -1,0 +1,33 @@
+{
+  "name": "@chatcap/ingestion",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Clinical-document ingestion: blacklist filter, chunking, embeddings and pgvector upsert with re-vectorization + prohibited-zone sweep (REQ-INGEST-1..6).",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@chatcap/config": "workspace:*",
+    "@chatcap/db-schema": "workspace:*",
+    "@chatcap/llm-client": "workspace:*",
+    "@chatcap/shared-types": "workspace:*",
+    "@chatcap/telemetry": "workspace:*",
+    "@chatcap/validation": "workspace:*",
+    "express": "catalog:",
+    "pg": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/express": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
