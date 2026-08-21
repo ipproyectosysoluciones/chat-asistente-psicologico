@@ -38,3 +38,7 @@ Thumbs.db
 
 # GGA cache
 .gga-cache/
+
+# .atl registry/cache — generated locally. Tracking it caused index corruption
+# (orphaned blobs pruned by git gc referenced from a stale index). Keep untracked.
+.atl/
