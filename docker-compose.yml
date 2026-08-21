@@ -1,0 +1,358 @@
+# =============================================================================
+# Chat Asistente Psicológico — Docker Compose (Compose v2 / `docker compose`)
+# Build context is the monorepo root; each service builds apps/<app>/Dockerfile.
+# NOTE: the referenced Dockerfiles are expected at apps/<app>/Dockerfile and are
+# NOT created here. `docker compose config` only validates this YAML; `up
+# --build` requires those Dockerfiles to exist.
+#
+# Every app service is self-contained: ${VAR:-default} keeps `docker compose
+# config` green and boot-able even without a populated .env. Provide real
+# secrets by exporting them or via a root `.env` (auto-loaded by Compose for
+# ${} substitution). The schema cross-checks CHATBOT_INTERNAL_TOKEN against
+# X_INTERNAL_TOKENS, so their defaults stay consistent.
+# =============================================================================
+
+volumes:
+  pgdata:
+  redisdata:
+  caddy_data:
+  caddy_config:
+
+networks:
+  appnet:
+    driver: bridge
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-changeme}
+      POSTGRES_DB: ${POSTGRES_DB:-chatcap}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - appnet
+
+  redis:
+    image: redis:7
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    networks:
+      - appnet
+
+  chat-bot:
+    build:
+      context: .
+      dockerfile: apps/chat-bot/Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PORT: 4001
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-chatcap}
+      REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-CHANGE_ME}
+      AI_EMISSION_ENABLED: ${AI_EMISSION_ENABLED:-true}
+      LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-gpt-4o}
+      LLM_NLI_MODEL: ${LLM_NLI_MODEL:-gpt-4o-mini}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      CRYPTO_MASTER_SECRET: ${CRYPTO_MASTER_SECRET:-CHANGE_ME_min_32_chars_random_0000}
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_min_32_chars_random_0000}
+      QR_KEY: ${QR_KEY:-CHANGE_ME_min_32_chars_random_0000}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-CHANGE_ME_bcrypt_hash}
+      X_INTERNAL_TOKENS: ${X_INTERNAL_TOKENS:-changeme_token_a,changeme_token_b}
+      GATE_COSINE_EMIT: ${GATE_COSINE_EMIT:-0.85}
+      GATE_COSINE_RETRY: ${GATE_COSINE_RETRY:-0.75}
+      GATE_MAX_RETRIES: ${GATE_MAX_RETRIES:-1}
+      GATE_NLI_ENABLED: ${GATE_NLI_ENABLED:-true}
+      RAG_TOP_K: ${RAG_TOP_K:-5}
+      ALERT_THROTTLE_RED_SECONDS: ${ALERT_THROTTLE_RED_SECONDS:-60}
+      ALERT_THROTTLE_ORANGE_SECONDS: ${ALERT_THROTTLE_ORANGE_SECONDS:-300}
+      ALERT_THROTTLE_YELLOW_SECONDS: ${ALERT_THROTTLE_YELLOW_SECONDS:-900}
+      FALLBACK_PUSH_URL: ${FALLBACK_PUSH_URL:-}
+      DASHBOARD_ORIGIN: ${DASHBOARD_ORIGIN:-}
+      GEOIP_PROVIDER: ${GEOIP_PROVIDER:-none}
+      MAXMIND_DB_PATH: ${MAXMIND_DB_PATH:-}
+      IPSTACK_API_KEY: ${IPSTACK_API_KEY:-}
+      CHATBOT_PROVIDER: ${CHATBOT_PROVIDER:-baileys}
+      CHATBOT_BAILEYS_SESSION_DIR: ${CHATBOT_BAILEYS_SESSION_DIR:-}
+      CHATBOT_META_ACCESS_TOKEN: ${CHATBOT_META_ACCESS_TOKEN:-}
+      CHATBOT_META_PHONE_NUMBER_ID: ${CHATBOT_META_PHONE_NUMBER_ID:-}
+      CHATBOT_AI_RAG_BASE_URL: http://ai-rag:4003
+      CHATBOT_INTERNAL_TOKEN: ${CHATBOT_INTERNAL_TOKEN:-changeme_token_a}
+      CONTACT_KEY_SALT: ${CONTACT_KEY_SALT:-CHANGE_ME_min_16_chars_random}
+      DASHBOARD_CHATBOT_BASE_URL: http://chat-bot:4001
+      DASHBOARD_CHATBOT_INTERNAL_TOKEN: ${DASHBOARD_CHATBOT_INTERNAL_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4001/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - appnet
+
+  notifications:
+    build:
+      context: .
+      dockerfile: apps/notifications/Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PORT: 4002
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-chatcap}
+      REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-CHANGE_ME}
+      AI_EMISSION_ENABLED: ${AI_EMISSION_ENABLED:-true}
+      LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-gpt-4o}
+      LLM_NLI_MODEL: ${LLM_NLI_MODEL:-gpt-4o-mini}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      CRYPTO_MASTER_SECRET: ${CRYPTO_MASTER_SECRET:-CHANGE_ME_min_32_chars_random_0000}
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_min_32_chars_random_0000}
+      QR_KEY: ${QR_KEY:-CHANGE_ME_min_32_chars_random_0000}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-CHANGE_ME_bcrypt_hash}
+      X_INTERNAL_TOKENS: ${X_INTERNAL_TOKENS:-changeme_token_a,changeme_token_b}
+      GATE_COSINE_EMIT: ${GATE_COSINE_EMIT:-0.85}
+      GATE_COSINE_RETRY: ${GATE_COSINE_RETRY:-0.75}
+      GATE_MAX_RETRIES: ${GATE_MAX_RETRIES:-1}
+      GATE_NLI_ENABLED: ${GATE_NLI_ENABLED:-true}
+      RAG_TOP_K: ${RAG_TOP_K:-5}
+      ALERT_THROTTLE_RED_SECONDS: ${ALERT_THROTTLE_RED_SECONDS:-60}
+      ALERT_THROTTLE_ORANGE_SECONDS: ${ALERT_THROTTLE_ORANGE_SECONDS:-300}
+      ALERT_THROTTLE_YELLOW_SECONDS: ${ALERT_THROTTLE_YELLOW_SECONDS:-900}
+      FALLBACK_PUSH_URL: ${FALLBACK_PUSH_URL:-}
+      DASHBOARD_ORIGIN: ${DASHBOARD_ORIGIN:-}
+      GEOIP_PROVIDER: ${GEOIP_PROVIDER:-none}
+      MAXMIND_DB_PATH: ${MAXMIND_DB_PATH:-}
+      IPSTACK_API_KEY: ${IPSTACK_API_KEY:-}
+      CHATBOT_PROVIDER: ${CHATBOT_PROVIDER:-baileys}
+      CHATBOT_BAILEYS_SESSION_DIR: ${CHATBOT_BAILEYS_SESSION_DIR:-}
+      CHATBOT_META_ACCESS_TOKEN: ${CHATBOT_META_ACCESS_TOKEN:-}
+      CHATBOT_META_PHONE_NUMBER_ID: ${CHATBOT_META_PHONE_NUMBER_ID:-}
+      CHATBOT_AI_RAG_BASE_URL: http://ai-rag:4003
+      CHATBOT_INTERNAL_TOKEN: ${CHATBOT_INTERNAL_TOKEN:-changeme_token_a}
+      CONTACT_KEY_SALT: ${CONTACT_KEY_SALT:-CHANGE_ME_min_16_chars_random}
+      DASHBOARD_CHATBOT_BASE_URL: http://chat-bot:4001
+      DASHBOARD_CHATBOT_INTERNAL_TOKEN: ${DASHBOARD_CHATBOT_INTERNAL_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4002/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - appnet
+
+  ai-rag:
+    build:
+      context: .
+      dockerfile: apps/ai-rag/Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PORT: 4003
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-chatcap}
+      REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-CHANGE_ME}
+      AI_EMISSION_ENABLED: ${AI_EMISSION_ENABLED:-true}
+      LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-gpt-4o}
+      LLM_NLI_MODEL: ${LLM_NLI_MODEL:-gpt-4o-mini}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      CRYPTO_MASTER_SECRET: ${CRYPTO_MASTER_SECRET:-CHANGE_ME_min_32_chars_random_0000}
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_min_32_chars_random_0000}
+      QR_KEY: ${QR_KEY:-CHANGE_ME_min_32_chars_random_0000}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-CHANGE_ME_bcrypt_hash}
+      X_INTERNAL_TOKENS: ${X_INTERNAL_TOKENS:-changeme_token_a,changeme_token_b}
+      GATE_COSINE_EMIT: ${GATE_COSINE_EMIT:-0.85}
+      GATE_COSINE_RETRY: ${GATE_COSINE_RETRY:-0.75}
+      GATE_MAX_RETRIES: ${GATE_MAX_RETRIES:-1}
+      GATE_NLI_ENABLED: ${GATE_NLI_ENABLED:-true}
+      RAG_TOP_K: ${RAG_TOP_K:-5}
+      ALERT_THROTTLE_RED_SECONDS: ${ALERT_THROTTLE_RED_SECONDS:-60}
+      ALERT_THROTTLE_ORANGE_SECONDS: ${ALERT_THROTTLE_ORANGE_SECONDS:-300}
+      ALERT_THROTTLE_YELLOW_SECONDS: ${ALERT_THROTTLE_YELLOW_SECONDS:-900}
+      FALLBACK_PUSH_URL: ${FALLBACK_PUSH_URL:-}
+      DASHBOARD_ORIGIN: ${DASHBOARD_ORIGIN:-}
+      GEOIP_PROVIDER: ${GEOIP_PROVIDER:-none}
+      MAXMIND_DB_PATH: ${MAXMIND_DB_PATH:-}
+      IPSTACK_API_KEY: ${IPSTACK_API_KEY:-}
+      CHATBOT_PROVIDER: ${CHATBOT_PROVIDER:-baileys}
+      CHATBOT_BAILEYS_SESSION_DIR: ${CHATBOT_BAILEYS_SESSION_DIR:-}
+      CHATBOT_META_ACCESS_TOKEN: ${CHATBOT_META_ACCESS_TOKEN:-}
+      CHATBOT_META_PHONE_NUMBER_ID: ${CHATBOT_META_PHONE_NUMBER_ID:-}
+      CHATBOT_AI_RAG_BASE_URL: http://ai-rag:4003
+      CHATBOT_INTERNAL_TOKEN: ${CHATBOT_INTERNAL_TOKEN:-changeme_token_a}
+      CONTACT_KEY_SALT: ${CONTACT_KEY_SALT:-CHANGE_ME_min_16_chars_random}
+      DASHBOARD_CHATBOT_BASE_URL: http://chat-bot:4001
+      DASHBOARD_CHATBOT_INTERNAL_TOKEN: ${DASHBOARD_CHATBOT_INTERNAL_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4003/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - appnet
+
+  ingestion:
+    build:
+      context: .
+      dockerfile: apps/ingestion/Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PORT: 4004
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-chatcap}
+      REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-CHANGE_ME}
+      AI_EMISSION_ENABLED: ${AI_EMISSION_ENABLED:-true}
+      LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-gpt-4o}
+      LLM_NLI_MODEL: ${LLM_NLI_MODEL:-gpt-4o-mini}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      CRYPTO_MASTER_SECRET: ${CRYPTO_MASTER_SECRET:-CHANGE_ME_min_32_chars_random_0000}
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_min_32_chars_random_0000}
+      QR_KEY: ${QR_KEY:-CHANGE_ME_min_32_chars_random_0000}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-CHANGE_ME_bcrypt_hash}
+      X_INTERNAL_TOKENS: ${X_INTERNAL_TOKENS:-changeme_token_a,changeme_token_b}
+      GATE_COSINE_EMIT: ${GATE_COSINE_EMIT:-0.85}
+      GATE_COSINE_RETRY: ${GATE_COSINE_RETRY:-0.75}
+      GATE_MAX_RETRIES: ${GATE_MAX_RETRIES:-1}
+      GATE_NLI_ENABLED: ${GATE_NLI_ENABLED:-true}
+      RAG_TOP_K: ${RAG_TOP_K:-5}
+      ALERT_THROTTLE_RED_SECONDS: ${ALERT_THROTTLE_RED_SECONDS:-60}
+      ALERT_THROTTLE_ORANGE_SECONDS: ${ALERT_THROTTLE_ORANGE_SECONDS:-300}
+      ALERT_THROTTLE_YELLOW_SECONDS: ${ALERT_THROTTLE_YELLOW_SECONDS:-900}
+      FALLBACK_PUSH_URL: ${FALLBACK_PUSH_URL:-}
+      DASHBOARD_ORIGIN: ${DASHBOARD_ORIGIN:-}
+      GEOIP_PROVIDER: ${GEOIP_PROVIDER:-none}
+      MAXMIND_DB_PATH: ${MAXMIND_DB_PATH:-}
+      IPSTACK_API_KEY: ${IPSTACK_API_KEY:-}
+      CHATBOT_PROVIDER: ${CHATBOT_PROVIDER:-baileys}
+      CHATBOT_BAILEYS_SESSION_DIR: ${CHATBOT_BAILEYS_SESSION_DIR:-}
+      CHATBOT_META_ACCESS_TOKEN: ${CHATBOT_META_ACCESS_TOKEN:-}
+      CHATBOT_META_PHONE_NUMBER_ID: ${CHATBOT_META_PHONE_NUMBER_ID:-}
+      CHATBOT_AI_RAG_BASE_URL: http://ai-rag:4003
+      CHATBOT_INTERNAL_TOKEN: ${CHATBOT_INTERNAL_TOKEN:-changeme_token_a}
+      CONTACT_KEY_SALT: ${CONTACT_KEY_SALT:-CHANGE_ME_min_16_chars_random}
+      DASHBOARD_CHATBOT_BASE_URL: http://chat-bot:4001
+      DASHBOARD_CHATBOT_INTERNAL_TOKEN: ${DASHBOARD_CHATBOT_INTERNAL_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4004/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - appnet
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: apps/dashboard/Dockerfile
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      PORT: 3000
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD:-changeme}@postgres:5432/${POSTGRES_DB:-chatcap}
+      REDIS_URL: redis://redis:6379
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-sk-CHANGE_ME}
+      AI_EMISSION_ENABLED: ${AI_EMISSION_ENABLED:-true}
+      LLM_CHAT_MODEL: ${LLM_CHAT_MODEL:-gpt-4o}
+      LLM_NLI_MODEL: ${LLM_NLI_MODEL:-gpt-4o-mini}
+      EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+      CRYPTO_MASTER_SECRET: ${CRYPTO_MASTER_SECRET:-CHANGE_ME_min_32_chars_random_0000}
+      JWT_SECRET: ${JWT_SECRET:-CHANGE_ME_min_32_chars_random_0000}
+      QR_KEY: ${QR_KEY:-CHANGE_ME_min_32_chars_random_0000}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@example.com}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-CHANGE_ME_bcrypt_hash}
+      X_INTERNAL_TOKENS: ${X_INTERNAL_TOKENS:-changeme_token_a,changeme_token_b}
+      GATE_COSINE_EMIT: ${GATE_COSINE_EMIT:-0.85}
+      GATE_COSINE_RETRY: ${GATE_COSINE_RETRY:-0.75}
+      GATE_MAX_RETRIES: ${GATE_MAX_RETRIES:-1}
+      GATE_NLI_ENABLED: ${GATE_NLI_ENABLED:-true}
+      RAG_TOP_K: ${RAG_TOP_K:-5}
+      ALERT_THROTTLE_RED_SECONDS: ${ALERT_THROTTLE_RED_SECONDS:-60}
+      ALERT_THROTTLE_ORANGE_SECONDS: ${ALERT_THROTTLE_ORANGE_SECONDS:-300}
+      ALERT_THROTTLE_YELLOW_SECONDS: ${ALERT_THROTTLE_YELLOW_SECONDS:-900}
+      FALLBACK_PUSH_URL: ${FALLBACK_PUSH_URL:-}
+      DASHBOARD_ORIGIN: ${DASHBOARD_ORIGIN:-}
+      GEOIP_PROVIDER: ${GEOIP_PROVIDER:-none}
+      MAXMIND_DB_PATH: ${MAXMIND_DB_PATH:-}
+      IPSTACK_API_KEY: ${IPSTACK_API_KEY:-}
+      CHATBOT_PROVIDER: ${CHATBOT_PROVIDER:-baileys}
+      CHATBOT_BAILEYS_SESSION_DIR: ${CHATBOT_BAILEYS_SESSION_DIR:-}
+      CHATBOT_META_ACCESS_TOKEN: ${CHATBOT_META_ACCESS_TOKEN:-}
+      CHATBOT_META_PHONE_NUMBER_ID: ${CHATBOT_META_PHONE_NUMBER_ID:-}
+      CHATBOT_AI_RAG_BASE_URL: http://ai-rag:4003
+      CHATBOT_INTERNAL_TOKEN: ${CHATBOT_INTERNAL_TOKEN:-changeme_token_a}
+      CONTACT_KEY_SALT: ${CONTACT_KEY_SALT:-CHANGE_ME_min_16_chars_random}
+      DASHBOARD_JWT_TTL_MINUTES: ${DASHBOARD_JWT_TTL_MINUTES:-15}
+      DASHBOARD_CHATBOT_BASE_URL: http://chat-bot:4001
+      DASHBOARD_CHATBOT_INTERNAL_TOKEN: ${DASHBOARD_CHATBOT_INTERNAL_TOKEN:-}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/healthz"]
+      interval: 15s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - appnet
+
+  caddy:
+    image: caddy:2
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - chat-bot
+      - notifications
+      - ai-rag
+      - ingestion
+      - dashboard
+    restart: unless-stopped
+    networks:
+      - appnet
