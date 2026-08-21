@@ -1,0 +1,34 @@
+{
+  "name": "@chatcap/notifications",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Alert routing, dedupe/throttle, Socket.io push and fallback channel (REQ-ALERT-1..6).",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@chatcap/config": "workspace:*",
+    "@chatcap/db-schema": "workspace:*",
+    "@chatcap/shared-types": "workspace:*",
+    "@chatcap/telemetry": "workspace:*",
+    "express": "catalog:",
+    "ioredis": "catalog:",
+    "pg": "catalog:",
+    "socket.io": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/express": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "socket.io-client": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

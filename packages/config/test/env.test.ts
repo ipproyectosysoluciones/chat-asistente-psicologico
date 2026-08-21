@@ -1,0 +1,289 @@
+import { describe, expect, test } from "vitest";
+
+import { ConfigError, EnvKeyProvider, loadConfig, type AppConfig } from "../src/index";
+import type { KeyProvider } from "../src/index";
+
+const MIN = "x".repeat(64);
+
+function validEnv(overrides: Record<string, string> = {}): Record<string, string> {
+  return {
+    DATABASE_URL: "postgres://u:p@localhost:5432/db",
+    REDIS_URL: "redis://localhost:6379",
+    OPENAI_API_KEY: "sk-test",
+    CRYPTO_MASTER_SECRET: MIN,
+    ADMIN_EMAIL: "admin@example.com",
+    ADMIN_PASSWORD_HASH: "$2b$12$abcdefghijklmnopqrstuv",
+    JWT_SECRET: MIN,
+    QR_KEY: MIN,
+    X_INTERNAL_TOKENS: "token-a,token-b",
+    CHATBOT_INTERNAL_TOKEN: "token-b",
+    CONTACT_KEY_SALT: "x".repeat(16),
+    ...overrides,
+  };
+}
+
+function expectConfigError(env: Record<string, string>, expectedVar: string): void {
+  try {
+    loadConfig(env);
+    expect.unreachable(`loadConfig should have thrown for ${expectedVar}`);
+  } catch (error) {
+    expect(error).toBeInstanceOf(ConfigError);
+    const message = (error as ConfigError).message;
+    expect(message).toContain(expectedVar);
+    expect(message).toMatch(/DATABASE_URL|REDIS_URL|CRYPTO_MASTER_SECRET|JWT_SECRET|QR_KEY|OPENAI_API_KEY|ADMIN_|X_INTERNAL_TOKENS|AI_EMISSION_ENABLED|GATE_|GEOIP|ALERT_THROTTLE|CHATBOT_|CONTACT_KEY_SALT/);
+  }
+}
+
+describe("loadConfig: fail-fast on missing/invalid required vars", () => {
+  test("missing DATABASE_URL fails with a clear message naming the var", () => {
+    const env = validEnv();
+    delete env.DATABASE_URL;
+    expectConfigError(env, "DATABASE_URL");
+  });
+
+  test("missing REDIS_URL fails with the var name", () => {
+    const env = validEnv();
+    delete env.REDIS_URL;
+    expectConfigError(env, "REDIS_URL");
+  });
+
+  test("missing OPENAI_API_KEY fails with the var name", () => {
+    const env = validEnv();
+    delete env.OPENAI_API_KEY;
+    expectConfigError(env, "OPENAI_API_KEY");
+  });
+
+  test("missing CRYPTO_MASTER_SECRET fails with the var name", () => {
+    const env = validEnv();
+    delete env.CRYPTO_MASTER_SECRET;
+    expectConfigError(env, "CRYPTO_MASTER_SECRET");
+  });
+
+  test("short CRYPTO_MASTER_SECRET (< 32 chars) fails", () => {
+    expectConfigError(validEnv({ CRYPTO_MASTER_SECRET: "tooshort" }), "CRYPTO_MASTER_SECRET");
+  });
+
+  test("missing X_INTERNAL_TOKENS fails with the var name", () => {
+    const env = validEnv();
+    delete env.X_INTERNAL_TOKENS;
+    expectConfigError(env, "X_INTERNAL_TOKENS");
+  });
+
+  test("non-boolean AI_EMISSION_ENABLED fails", () => {
+    expectConfigError(validEnv({ AI_EMISSION_ENABLED: "yes" }), "AI_EMISSION_ENABLED");
+  });
+
+  test("invalid ADMIN_EMAIL fails", () => {
+    expectConfigError(validEnv({ ADMIN_EMAIL: "not-an-email" }), "ADMIN_EMAIL");
+  });
+
+  test("out-of-range gate threshold fails", () => {
+    expectConfigError(validEnv({ GATE_COSINE_EMIT: "1.7" }), "GATE_COSINE_EMIT");
+  });
+
+  test("emit threshold not greater than retry threshold fails", () => {
+    expectConfigError(
+      validEnv({ GATE_COSINE_EMIT: "0.70", GATE_COSINE_RETRY: "0.75" }),
+      "GATE_COSINE_EMIT"
+    );
+  });
+
+  test("invalid GEOIP_PROVIDER fails", () => {
+    expectConfigError(validEnv({ GEOIP_PROVIDER: "google" }), "GEOIP_PROVIDER");
+  });
+
+  test("non-positive alert throttle window fails", () => {
+    expectConfigError(validEnv({ ALERT_THROTTLE_RED_SECONDS: "0" }), "ALERT_THROTTLE_RED_SECONDS");
+    expectConfigError(
+      validEnv({ ALERT_THROTTLE_ORANGE_SECONDS: "-5" }),
+      "ALERT_THROTTLE_ORANGE_SECONDS"
+    );
+  });
+});
+
+describe("loadConfig: valid env parses with defaults", () => {
+  test("parses a complete env into an AppConfig", () => {
+    const config: AppConfig = loadConfig(validEnv());
+    expect(config.databaseUrl).toBe("postgres://u:p@localhost:5432/db");
+    expect(config.redisUrl).toBe("redis://localhost:6379");
+    expect(config.openAiApiKey).toBe("sk-test");
+    expect(config.cryptoMasterSecret).toBe(MIN);
+    expect(config.internalTokens).toEqual(["token-a", "token-b"]);
+  });
+
+  test("gate thresholds default to 0.85/0.75/1 with NLI enabled", () => {
+    const config = loadConfig(validEnv());
+    expect(config.gate.cosineEmit).toBe(0.85);
+    expect(config.gate.cosineRetry).toBe(0.75);
+    expect(config.gate.maxRetries).toBe(1);
+    expect(config.gate.nliEnabled).toBe(true);
+  });
+
+  test("explicit gate thresholds are honored", () => {
+    const config = loadConfig(
+      validEnv({
+        GATE_COSINE_EMIT: "0.9",
+        GATE_COSINE_RETRY: "0.8",
+        GATE_MAX_RETRIES: "2",
+        GATE_NLI_ENABLED: "false",
+      })
+    );
+    expect(config.gate.cosineEmit).toBe(0.9);
+    expect(config.gate.cosineRetry).toBe(0.8);
+    expect(config.gate.maxRetries).toBe(2);
+    expect(config.gate.nliEnabled).toBe(false);
+  });
+
+  test("AI_EMISSION_ENABLED defaults true and parses false", () => {
+    expect(loadConfig(validEnv()).aiEmissionEnabled).toBe(true);
+    expect(loadConfig(validEnv({ AI_EMISSION_ENABLED: "false" })).aiEmissionEnabled).toBe(false);
+  });
+
+  test("internal tokens are trimmed and empties dropped", () => {
+    const config = loadConfig(
+      validEnv({ X_INTERNAL_TOKENS: " a , b ,, c ", CHATBOT_INTERNAL_TOKEN: "b" })
+    );
+    expect(config.internalTokens).toEqual(["a", "b", "c"]);
+  });
+
+  test("LLM models default to gpt-4o / gpt-4o-mini / text-embedding-3-small", () => {
+    const config = loadConfig(validEnv());
+    expect(config.llm.chatModel).toBe("gpt-4o");
+    expect(config.llm.nliModel).toBe("gpt-4o-mini");
+    expect(config.llm.embeddingModel).toBe("text-embedding-3-small");
+  });
+
+  test("LLM models are overridable via env (model swap config-only)", () => {
+    const config = loadConfig(
+      validEnv({
+        LLM_CHAT_MODEL: "gpt-4o-mini",
+        LLM_NLI_MODEL: "gpt-4.1-mini",
+        EMBEDDING_MODEL: "text-embedding-3-large",
+      })
+    );
+    expect(config.llm.chatModel).toBe("gpt-4o-mini");
+    expect(config.llm.nliModel).toBe("gpt-4.1-mini");
+    expect(config.llm.embeddingModel).toBe("text-embedding-3-large");
+  });
+
+  test("geo provider defaults to none with empty keys", () => {
+    const config = loadConfig(validEnv());
+    expect(config.geo.provider).toBe("none");
+  });
+
+  test("geo provider accepts maxmind with a db path", () => {
+    const config = loadConfig(validEnv({ GEOIP_PROVIDER: "maxmind", MAXMIND_DB_PATH: "/data/GeoLite2.mmdb" }));
+    expect(config.geo.provider).toBe("maxmind");
+    expect(config.geo.maxmindDbPath).toBe("/data/GeoLite2.mmdb");
+  });
+
+  test("alert throttle windows default to 60s red / 300s orange / 900s yellow", () => {
+    const config = loadConfig(validEnv());
+    expect(config.alertThrottle).toEqual({
+      redSeconds: 60,
+      orangeSeconds: 300,
+      yellowSeconds: 900,
+    });
+  });
+
+  test("rag topK defaults to 5 and is overridable via RAG_TOP_K", () => {
+    expect(loadConfig(validEnv()).rag).toEqual({ topK: 5 });
+    expect(loadConfig(validEnv({ RAG_TOP_K: "8" })).rag).toEqual({ topK: 8 });
+  });
+
+  test("alert throttle windows are overridable via env", () => {
+    const config = loadConfig(
+      validEnv({
+        ALERT_THROTTLE_RED_SECONDS: "30",
+        ALERT_THROTTLE_ORANGE_SECONDS: "120",
+        ALERT_THROTTLE_YELLOW_SECONDS: "600",
+      })
+    );
+    expect(config.alertThrottle).toEqual({
+      redSeconds: 30,
+      orangeSeconds: 120,
+      yellowSeconds: 600,
+    });
+  });
+
+  test("FALLBACK_PUSH_URL defaults to empty and parses a value", () => {
+    expect(loadConfig(validEnv()).fallbackPushUrl).toBe("");
+    const withUrl = loadConfig(
+      validEnv({ FALLBACK_PUSH_URL: "https://hooks.example.test/alert" })
+    );
+    expect(withUrl.fallbackPushUrl).toBe("https://hooks.example.test/alert");
+  });
+
+  test("DASHBOARD_ORIGIN defaults to empty (same-origin only) and parses a value", () => {
+    expect(loadConfig(validEnv()).dashboardOrigin).toBe("");
+    const withOrigin = loadConfig(
+      validEnv({ DASHBOARD_ORIGIN: "https://dashboard.example.test" })
+    );
+    expect(withOrigin.dashboardOrigin).toBe("https://dashboard.example.test");
+  });
+});
+
+describe("loadConfig: chatbot block (task 4.1)", () => {
+  test("provider defaults to baileys with an empty session dir", () => {
+    const config = loadConfig(validEnv());
+    expect(config.chatbot.provider).toBe("baileys");
+    expect(config.chatbot.baileysSessionDir).toBe("");
+  });
+
+  test("provider swap to meta is configuration-only (design §8)", () => {
+    const config = loadConfig(
+      validEnv({
+        CHATBOT_PROVIDER: "meta",
+        CHATBOT_META_ACCESS_TOKEN: "EAATestToken",
+        CHATBOT_META_PHONE_NUMBER_ID: "123456789",
+      })
+    );
+    expect(config.chatbot.provider).toBe("meta");
+    expect(config.chatbot.metaAccessToken).toBe("EAATestToken");
+    expect(config.chatbot.metaPhoneNumberId).toBe("123456789");
+  });
+
+  test("invalid CHATBOT_PROVIDER fails fast", () => {
+    expectConfigError(validEnv({ CHATBOT_PROVIDER: "telegram" }), "CHATBOT_PROVIDER");
+  });
+
+  test("CONTACT_KEY_SALT is required with a minimum length", () => {
+    expectConfigError(validEnv({ CONTACT_KEY_SALT: "tooshort" }), "CONTACT_KEY_SALT");
+  });
+
+  test("CHATBOT_INTERNAL_TOKEN must be one of X_INTERNAL_TOKENS", () => {
+    expectConfigError(
+      validEnv({ CHATBOT_INTERNAL_TOKEN: "unknown-token" }),
+      "CHATBOT_INTERNAL_TOKEN"
+    );
+  });
+
+  test("AI RAG base url defaults to the private Docker network alias", () => {
+    const config = loadConfig(validEnv());
+    expect(config.chatbot.aiRagBaseUrl).toBe("http://ai-rag:3000");
+    expect(config.chatbot.internalToken).toBe("token-b");
+    expect(config.chatbot.contactKeySalt).toBe("x".repeat(16));
+  });
+
+  test("AI RAG base url is overridable via env", () => {
+    const config = loadConfig(
+      validEnv({ CHATBOT_AI_RAG_BASE_URL: "http://localhost:3110" })
+    );
+    expect(config.chatbot.aiRagBaseUrl).toBe("http://localhost:3110");
+  });
+});
+
+describe("KeyProvider: EnvKeyProvider pilot implementation", () => {
+  test("returns the master secret as a Buffer", async () => {
+    const provider: KeyProvider = new EnvKeyProvider(MIN);
+    const secret = await provider.getMasterSecret();
+    expect(secret).toBeInstanceOf(Buffer);
+    expect(secret.toString("utf8")).toBe(MIN);
+  });
+
+  test("round-trips the exact bytes of the configured secret", async () => {
+    const provider = new EnvKeyProvider("s3cr3t-value-0123456789abcdef");
+    const secret = await provider.getMasterSecret();
+    expect(secret.equals(Buffer.from("s3cr3t-value-0123456789abcdef", "utf8"))).toBe(true);
+  });
+});

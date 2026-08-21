@@ -62,4 +62,4 @@ OPENCODE_AGENT="gga-reviewer"
 
 # Base branch for --pr-mode (auto-detects main/master/develop if empty)
 # Default: auto-detect
-PR_BASE_BRANCH=""
+PR_BASE_BRANCH="dev"

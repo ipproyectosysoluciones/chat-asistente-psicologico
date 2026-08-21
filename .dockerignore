@@ -1,0 +1,35 @@
+# Docker build context ignore rules for the Chat-Asistente-Psicologico monorepo.
+# Keeps the build context lean: no local node_modules, build output, secrets,
+# or VCS metadata are sent to the Docker daemon.
+
+# Dependencies (reinstalled inside the builder stage)
+node_modules
+.pnpm-store
+
+# Build output (rebuilt inside the container)
+dist
+build
+coverage
+*.tsbuildinfo
+
+# Version control
+.git
+.gitignore
+
+# Logs / runtime temp
+*.log
+logs
+.tmp
+
+# Secrets / environment
+.env
+.env.*
+!.env.example
+
+# Local tooling state
+.atl
+
+# Editor / OS
+.vscode
+.idea
+.DS_Store

@@ -1,0 +1,29 @@
+{
+  "name": "@chatcap/db-schema",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./migrations": "./migrations/0001_initial_schema.sql"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "seed": "tsx seed/seed.ts",
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@chatcap/config": "workspace:*",
+    "@chatcap/shared-types": "workspace:*",
+    "node-pg-migrate": "catalog:",
+    "pg": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "tsx": "^4.23.12",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

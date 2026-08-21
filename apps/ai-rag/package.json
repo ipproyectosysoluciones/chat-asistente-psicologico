@@ -1,0 +1,34 @@
+{
+  "name": "@chatcap/ai-rag",
+  "version": "0.1.0",
+  "private": true,
+  "description": "RAG pipeline service: risk classification, pgvector HNSW retrieval, grounded GPT-4o generation and mandatory coherence gate (REQ-RAG-1..8).",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@chatcap/config": "workspace:*",
+    "@chatcap/db-schema": "workspace:*",
+    "@chatcap/llm-client": "workspace:*",
+    "@chatcap/shared-types": "workspace:*",
+    "@chatcap/telemetry": "workspace:*",
+    "@chatcap/validation": "workspace:*",
+    "express": "catalog:",
+    "ioredis": "catalog:",
+    "pg": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/express": "catalog:",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
