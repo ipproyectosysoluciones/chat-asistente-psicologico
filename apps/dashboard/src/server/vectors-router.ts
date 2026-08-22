@@ -145,8 +145,21 @@ export function createVectorsRouter(deps: VectorsRouterDeps): Router {
     ? [authenticate, deleteRateLimit, authorize]
     : [authenticate, authorize];
 
-  // GET /search — read-only, no Express rate limiter (Caddy global only)
-  router.use("/api/v1/vectors/search", authenticate, authorize);
+  const searchRateLimit = deps.rateLimiter
+    ? createCriticalRateLimit(
+        deps.rateLimiter,
+        (req) => req.principal?.userId ?? req.ip ?? "unknown"
+      )
+    : null;
+
+  const searchChain = searchRateLimit
+    ? [authenticate, searchRateLimit, authorize]
+    : [authenticate, authorize];
+
+  // GET /search — re-embeds the free-text query (expensive AI-RAG call), so it
+  // is rate-limited per user; the Caddy global limit is the outer backstop
+  // (design §B5). Without this, CodeQL flags the authorized route as unmetered.
+  router.use("/api/v1/vectors/search", ...searchChain);
 
   // DELETE /chunks — destructive, rate-limited per user
   router.use(
