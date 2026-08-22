@@ -12,6 +12,10 @@ import {
 } from "./auth/middleware";
 import type { JwtConfig } from "./auth/jwt";
 import type { AuthUsers } from "./auth/auth-router";
+import {
+  createCriticalRateLimit,
+  type RateLimiterMemory,
+} from "./middleware/rate-limit";
 
 /**
  * Key-rotation monitor router (task 5.6, REQ-KEY-3/REQ-DASH-1): GET
@@ -78,6 +82,8 @@ export interface KeysRouterDeps {
   emit?: (event: string, payload: unknown) => void;
   /** Best-effort audit-write error sink (mirrors alerts-router). */
   onAuditError?: (error: unknown) => void;
+  /** Shared rate limiter for critical mutating endpoints (design §B5). */
+  rateLimiter?: RateLimiterMemory;
 }
 
 const KEYS_VIEW_ROLES: Role[] = ["supervisor", "admin"];
@@ -145,10 +151,20 @@ export function createKeysRouter(deps: KeysRouterDeps): Router {
     }
   );
 
+  const rotateRateLimit = deps.rateLimiter
+    ? createCriticalRateLimit(
+        deps.rateLimiter,
+        (req) => req.principal?.userId ?? req.ip ?? "unknown"
+      )
+    : null;
+
+  const rotateChain = rotateRateLimit
+    ? [authenticate, rotateRateLimit, authorizeMutate]
+    : [authenticate, authorizeMutate];
+
   router.post(
     "/api/v1/keys/rotation/rotate",
-    authenticate,
-    authorizeMutate,
+    ...rotateChain,
     async (req, res) => {
       const parsed = rotateBodySchema.safeParse(req.body);
       if (!parsed.success) {

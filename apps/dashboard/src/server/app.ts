@@ -31,6 +31,7 @@ import type { AuthUsers } from "./auth/auth-router";
 import type { AuditWriter } from "./auth/middleware";
 import { createChatsRouter, type ChatsRepository } from "./chats-router";
 import { createErrorHandler, notFoundHandler } from "./errors";
+import type { RateLimiterMemory } from "./middleware/rate-limit";
 import { createClientServing } from "./static";
 import {
   createTakeoverRouter,
@@ -59,6 +60,12 @@ export interface AppDeps {
   users: AuthUsers;
   audit: AuditWriter;
   chats: ChatsRepository;
+  /**
+   * Shared rate limiter for critical mutating endpoints (design §B5).
+   * Created once, injected into all routers that need per-user limiting.
+   * If omitted, no Express-level rate limiting is applied.
+   */
+  rateLimiter?: RateLimiterMemory;
   /**
    * Takeover/release router (task 5.3, REQ-DASH-3). Optional so existing
    * factory tests keep constructing the app without it; the composition root
@@ -134,6 +141,7 @@ export function createApp(deps: AppDeps): Express {
     createAuthRouter({
       jwt: deps.jwt,
       users: deps.users,
+      rateLimiter: deps.rateLimiter,
     })
   );
 
