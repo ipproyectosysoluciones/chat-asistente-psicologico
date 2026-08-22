@@ -11,6 +11,10 @@ import {
 } from "./auth/middleware";
 import type { JwtConfig } from "./auth/jwt";
 import type { AuthUsers } from "./auth/auth-router";
+import {
+  createCriticalRateLimit,
+  type RateLimiterMemory,
+} from "./middleware/rate-limit";
 
 /**
  * Vectors router (task 5.5 core, REQ-DASH-RAG-7): supervisor / admin manual
@@ -59,6 +63,8 @@ export interface VectorsRouterDeps {
   audit: AuditWriter;
   vectors: VectorsRepository;
   embed: EmbedPort;
+  /** Shared rate limiter for critical mutating endpoints (design §B5). */
+  rateLimiter?: RateLimiterMemory;
 }
 
 const VECTOR_ROLES: Role[] = ["supervisor", "admin"];
@@ -128,13 +134,24 @@ export function createVectorsRouter(deps: VectorsRouterDeps): Router {
     audit: deps.audit,
   });
 
+  const deleteRateLimit = deps.rateLimiter
+    ? createCriticalRateLimit(
+        deps.rateLimiter,
+        (req) => req.principal?.userId ?? req.ip ?? "unknown"
+      )
+    : null;
+
+  const deleteChain = deleteRateLimit
+    ? [authenticate, deleteRateLimit, authorize]
+    : [authenticate, authorize];
+
+  // GET /search — read-only, no Express rate limiter (Caddy global only)
+  router.use("/api/v1/vectors/search", authenticate, authorize);
+
+  // DELETE /chunks — destructive, rate-limited per user
   router.use(
-    [
-      "/api/v1/vectors/search",
-      "/api/v1/vectors/documents/:docId/chunks/:chunkIndex",
-    ],
-    authenticate,
-    authorize
+    "/api/v1/vectors/documents/:docId/chunks/:chunkIndex",
+    ...deleteChain
   );
 
   router.get("/api/v1/vectors/search", async (req, res) => {

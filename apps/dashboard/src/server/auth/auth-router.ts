@@ -7,6 +7,10 @@ import { PROBLEM_BASE, problemResponse } from "../errors";
 import { signAccessToken, type JwtConfig } from "./jwt";
 import { verifyPassword } from "./password";
 import { createAuthenticate } from "./middleware";
+import {
+  createCriticalRateLimit,
+  type RateLimiterMemory,
+} from "../middleware/rate-limit";
 
 /**
  * Auth router (task 5.1, design §3.3): POST /auth/login and GET /auth/me.
@@ -23,6 +27,8 @@ export interface AuthUsers {
 export interface AuthDeps {
   jwt: JwtConfig;
   users: AuthUsers;
+  /** Shared rate limiter for critical mutating endpoints (design §B5). */
+  rateLimiter?: RateLimiterMemory;
 }
 
 const loginSchema = z.object({
@@ -43,7 +49,20 @@ export function createAuthRouter(deps: AuthDeps): Router {
     },
   });
 
-  router.post("/auth/login", async (req, res) => {
+  const loginMiddleware = deps.rateLimiter
+    ? [
+        createCriticalRateLimit(
+          deps.rateLimiter,
+          // Login has no JWT — key by email (body) with IP fallback
+          (req) =>
+            (req.body?.email as string /* req.body is untyped (Express any); email is re-validated by loginSchema downstream */) ||
+            req.ip ||
+            "unknown"
+        ),
+      ]
+    : [];
+
+  router.post("/auth/login", ...loginMiddleware, async (req, res) => {
     const parsed = loginSchema.safeParse(req.body);
     if (!parsed.success) {
       problemResponse(res, {
