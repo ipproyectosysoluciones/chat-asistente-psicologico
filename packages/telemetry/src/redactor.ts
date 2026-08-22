@@ -20,10 +20,17 @@ const PHONE_TAG = "[PHONE]";
 const EMAIL_TAG = "[EMAIL]";
 
 /**
- * Non-overlapping email regex (WS-C). No nested quantifiers — linear O(n).
- * Matches: user@example.com, a.b+c@d.co, etc.
+ * ReDoS-safe email regex (WS-C). Two properties prevent catastrophic
+ * backtracking:
+ *  - No `%` in the local-part class, so a `%`-repetitive input is never
+ *    greedily consumed then backtracked.
+ *  - Single quantifier per segment, separated by literal `.` — no nested
+ *    overlapping quantifiers. The optional TLD group starts with a literal
+ *    `.`, so its `*` cannot collide with the preceding label/TLD.
+ * Matches: user@example.com, a.b+c@sub.example.co.ar, etc.
  */
-const EMAIL_RE = /[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}/g;
+const EMAIL_RE =
+  /[A-Za-z0-9._+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}(\.[A-Za-z]{2,})*/g;
 
 /** Keys whose whole value is PII (WhatsApp webhook identity/message fields). */
 const PII_KEY_RE =
