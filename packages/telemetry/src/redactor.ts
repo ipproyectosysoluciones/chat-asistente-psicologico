@@ -22,15 +22,17 @@ const EMAIL_TAG = "[EMAIL]";
 /**
  * ReDoS-safe email regex (WS-C). Two properties prevent catastrophic
  * backtracking:
- *  - No `%` in the local-part class, so a `%`-repetitive input is never
- *    greedily consumed then backtracked.
- *  - Single quantifier per segment, separated by literal `.` — no nested
- *    overlapping quantifiers. The optional TLD group starts with a literal
- *    `.`, so its `*` cannot collide with the preceding label/TLD.
- * Matches: user@example.com, a.b+c@sub.example.co.ar, etc.
+ *  - No `%` and no literal `+` inside any character class, so `%`- or
+ *    `+`-repetitive input is never greedily consumed then backtracked. The
+ *    optional `+tag` part is a literal `\+` OUTSIDE the class, not a class
+ *    member.
+ *  - Single quantifier per segment, separated by literal `.`/`@`/`\+` — no
+ *    nested overlapping quantifiers. The optional TLD group starts with a
+ *    literal `.`, so its `*` cannot collide with the preceding label/TLD.
+ * Matches: user@example.com, maria.lopez+tag@sub.example.co.ar, etc.
  */
 const EMAIL_RE =
-  /[A-Za-z0-9._+-]+@[A-Za-z0-9-]+\.[A-Za-z]{2,}(\.[A-Za-z]{2,})*/g;
+  /[A-Za-z0-9._-]+(?:\+[A-Za-z0-9._-]+)?@[A-Za-z0-9-]+\.[A-Za-z]{2,}(\.[A-Za-z]{2,})*/g;
 
 /** Keys whose whole value is PII (WhatsApp webhook identity/message fields). */
 const PII_KEY_RE =
