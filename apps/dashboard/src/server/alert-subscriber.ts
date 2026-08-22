@@ -67,7 +67,7 @@ export async function subscribeAlertChannel(
     await client.quit().catch((quitError: unknown) => {
       options.logger?.error("redis client quit failed", { err: quitError });
     });
-      return createNoopSubscriber(client, options.logger);
+    return createNoopSubscriber(client, options.logger);
   }
 
   return {
