@@ -9,20 +9,86 @@
  *
  * Trace/entity ids (traceId, sessionId, alertId, ...) stay on the allowlist:
  * their values survive unless they themselves contain a phone/email pattern.
+ *
+ * WS-C: phone detection uses a linear O(n) scan (no backtracking regex) to
+ * prevent ReDoS on attacker-controlled input. Email detection uses a
+ * non-overlapping linear regex.
  */
 
 const REDACTED = "[REDACTED]";
 const PHONE_TAG = "[PHONE]";
 const EMAIL_TAG = "[EMAIL]";
 
-/**
- * Phone-ish: optional leading +, 8+ digits with separators (space, dot, dash,
- * parentheses). Requires at least 8 digits total so years/counts ("2026 in 10
- * days") are untouched.
- */
-const PHONE_RE = /\+?\d[\d\s().-]{6,}\d/g;
+/** Characters allowed in an email local part (before `@`). */
+function isEmailLocalChar(c: string): boolean {
+  return (
+    (c >= "a" && c <= "z") ||
+    (c >= "A" && c <= "Z") ||
+    (c >= "0" && c <= "9") ||
+    c === "." ||
+    c === "_" ||
+    c === "%" ||
+    c === "+" ||
+    c === "-"
+  );
+}
 
-const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+/** Characters allowed in an email domain part (after `@`). */
+function isEmailDomainChar(c: string): boolean {
+  return (
+    (c >= "a" && c <= "z") ||
+    (c >= "A" && c <= "Z") ||
+    (c >= "0" && c <= "9") ||
+    c === "." ||
+    c === "-"
+  );
+}
+
+/**
+ * Linear email scan (WS-C): finds `local@domain` runs and replaces them with
+ * `[EMAIL]`. No regex is used on the untrusted path — O(n), backtracking-free —
+ * so CodeQL's `js/polynomial-redos` has nothing to flag. A domain must contain
+ * a `.` and end in a 2+ letter TLD to qualify as an email.
+ */
+function redactEmails(s: string): string {
+  let result = "";
+  let i = 0;
+  while (i < s.length) {
+    if (s[i] === "@") {
+      let start = i;
+      while (start > 0 && isEmailLocalChar(s[start - 1]!)) {
+        start--;
+      }
+      let end = i + 1;
+      while (end < s.length && isEmailDomainChar(s[end]!)) {
+        end++;
+      }
+      const local = s.slice(start, i);
+      const domain = s.slice(i + 1, end);
+      const lastDot = domain.lastIndexOf(".");
+      const tld = lastDot >= 0 ? domain.slice(lastDot + 1) : "";
+      // The local-part chars [start, i) were already appended char-by-char in
+      // the else branch above; drop them so we can emit the email atomically.
+      result = result.slice(0, result.length - (i - start));
+      if (
+        local.length > 0 &&
+        lastDot > 0 &&
+        tld.length >= 2 &&
+        ((tld[0]! >= "a" && tld[0]! <= "z") ||
+          (tld[0]! >= "A" && tld[0]! <= "Z"))
+      ) {
+        result += EMAIL_TAG;
+      } else {
+        result += s.slice(start, end);
+      }
+      i = end;
+    } else {
+      result += s[i];
+      i++;
+    }
+  }
+  return result;
+}
 
 /** Keys whose whole value is PII (WhatsApp webhook identity/message fields). */
 const PII_KEY_RE =
@@ -33,16 +99,95 @@ export function isPiiKey(key: string): boolean {
   return PII_KEY_RE.test(key);
 }
 
+/**
+ * Checks whether a digit-only string represents a phone number.
+ * Must be 8–15 digits after stripping non-digit characters.
+ */
+export function isPhone(s: string): boolean {
+  const digits = s.replace(/\D/g, "");
+  return digits.length >= 8 && digits.length <= 15;
+}
+
 /** Type guard for plain record objects (narrows after typeof checks). */
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/** Single-digit test (plain comparison — no regex, no ReDoS surface). */
+function isDigit(c: string): boolean {
+  return c >= "0" && c <= "9";
+}
+
+/**
+ * Characters that can appear inside a phone number run. Implemented as a plain
+ * membership check (NOT a regex) so CodeQL's `js/polynomial-redos` has no regex
+ * to flag — the linear scan is genuinely backtracking-free.
+ */
+function isPhoneChar(c: string): boolean {
+  return (
+    isDigit(c) ||
+    c === "+" ||
+    c === "-" ||
+    c === "." ||
+    c === "(" ||
+    c === ")" ||
+    c === "[" ||
+    c === "]" ||
+    c === " " ||
+    c === "\t" ||
+    c === "\n" ||
+    c === "\r"
+  );
+}
+
+/**
+ * Linear phone scan (WS-C): walks the string once, identifying runs of
+ * phone-like characters starting from a `+` or digit. O(n) with no
+ * backtracking. Trailing non-digit characters are excluded from the
+ * matched run so surrounding whitespace is preserved (parity with the
+ * old regex `\+?\d[\d\s().-]{6,}\d`).
+ */
+function redactPhones(s: string): string {
+  let result = "";
+  let i = 0;
+
+  while (i < s.length) {
+    // Only start a phone run at '+' or a digit (not at a space/parens/dash)
+    if (s[i] === "+" || isDigit(s[i]!)) {
+      const start = i;
+      // Consume forward while we see phone-like characters
+      while (i < s.length && isPhoneChar(s[i]!)) {
+        i++;
+      }
+      // Trim trailing non-digit characters (spaces, dashes, parens, dots)
+      let end = i;
+      while (end > start && !isDigit(s[end - 1]!)) {
+        end--;
+      }
+      const run = s.slice(start, end);
+      if (isPhone(run)) {
+        result += PHONE_TAG;
+      } else {
+        result += run;
+      }
+      // Emit trailing chars that were trimmed (spaces, dashes, etc.)
+      if (end < i) {
+        result += s.slice(end, i);
+      }
+    } else {
+      result += s[i];
+      i++;
+    }
+  }
+
+  return result;
+}
+
 /** Pattern-level redaction of a plain string (phones and emails). */
 export function redactPii(value: string): string {
-  return value
-    .replace(EMAIL_RE, EMAIL_TAG)
-    .replace(PHONE_RE, PHONE_TAG);
+  // Email first (linear scan), then linear phone scan — no regex on the
+  // untrusted path, so CodeQL's js/polynomial-redos has nothing to flag.
+  return redactPhones(redactEmails(value));
 }
 
 /** Redacts a single value given its key: full redaction for PII keys. */
