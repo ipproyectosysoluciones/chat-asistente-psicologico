@@ -67,7 +67,7 @@ export async function subscribeAlertChannel(
     await client.quit().catch((quitError: unknown) => {
       options.logger?.error("redis client quit failed", { err: quitError });
     });
-    return createNoopSubscriber(client);
+    return createNoopSubscriber(client, options.logger);
   }
 
   return {
@@ -79,11 +79,14 @@ export async function subscribeAlertChannel(
   };
 }
 
-function createNoopSubscriber(client: Redis): AlertSubscriber {
+function createNoopSubscriber(
+  client: Redis,
+  logger?: { error: (message: string, context?: unknown) => void }
+): AlertSubscriber {
   return {
     async close() {
       await client.quit().catch((quitError: unknown) => {
-      options.logger?.error("redis client quit failed", { err: quitError });
+      logger?.error("redis client quit failed", { err: quitError });
     });
     },
   };

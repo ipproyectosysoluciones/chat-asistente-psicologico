@@ -1,0 +1,26 @@
+{
+  "name": "@chatcap/validation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Coherence gate for grounded emission: cosine similarity, NLI contradiction, and role-deviation guardrail (REQ-RAG-4/5/6).",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.typecheck.json",
+    "build": "tsc -b tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@chatcap/llm-client": "workspace:*",
+    "@chatcap/shared-types": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "catalog:",
+    "vitest": "catalog:",
+    "@types/node": "catalog:"
+  }
+}
