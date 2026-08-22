@@ -19,20 +19,76 @@ const REDACTED = "[REDACTED]";
 const PHONE_TAG = "[PHONE]";
 const EMAIL_TAG = "[EMAIL]";
 
+/** Characters allowed in an email local part (before `@`). */
+function isEmailLocalChar(c: string): boolean {
+  return (
+    (c >= "a" && c <= "z") ||
+    (c >= "A" && c <= "Z") ||
+    (c >= "0" && c <= "9") ||
+    c === "." ||
+    c === "_" ||
+    c === "%" ||
+    c === "+" ||
+    c === "-"
+  );
+}
+
+/** Characters allowed in an email domain part (after `@`). */
+function isEmailDomainChar(c: string): boolean {
+  return (
+    (c >= "a" && c <= "z") ||
+    (c >= "A" && c <= "Z") ||
+    (c >= "0" && c <= "9") ||
+    c === "." ||
+    c === "-"
+  );
+}
+
 /**
- * ReDoS-safe email regex (WS-C). Two properties prevent catastrophic
- * backtracking:
- *  - No `%` and no literal `+` inside any character class, so `%`- or
- *    `+`-repetitive input is never greedily consumed then backtracked. The
- *    optional `+tag` part is a literal `\+` OUTSIDE the class, not a class
- *    member.
- *  - Single quantifier per segment, separated by literal `.`/`@`/`\+` — no
- *    nested overlapping quantifiers. The optional TLD group starts with a
- *    literal `.`, so its `*` cannot collide with the preceding label/TLD.
- * Matches: user@example.com, maria.lopez+tag@sub.example.co.ar, etc.
+ * Linear email scan (WS-C): finds `local@domain` runs and replaces them with
+ * `[EMAIL]`. No regex is used on the untrusted path — O(n), backtracking-free —
+ * so CodeQL's `js/polynomial-redos` has nothing to flag. A domain must contain
+ * a `.` and end in a 2+ letter TLD to qualify as an email.
  */
-const EMAIL_RE =
-  /[A-Za-z0-9._-]+(?:\+[A-Za-z0-9._-]+)?@[A-Za-z0-9-]+\.[A-Za-z]{2,}(\.[A-Za-z]{2,})*/g;
+function redactEmails(s: string): string {
+  let result = "";
+  let i = 0;
+  while (i < s.length) {
+    if (s[i] === "@") {
+      let start = i;
+      while (start > 0 && isEmailLocalChar(s[start - 1]!)) {
+        start--;
+      }
+      let end = i + 1;
+      while (end < s.length && isEmailDomainChar(s[end]!)) {
+        end++;
+      }
+      const local = s.slice(start, i);
+      const domain = s.slice(i + 1, end);
+      const lastDot = domain.lastIndexOf(".");
+      const tld = lastDot >= 0 ? domain.slice(lastDot + 1) : "";
+      // The local-part chars [start, i) were already appended char-by-char in
+      // the else branch above; drop them so we can emit the email atomically.
+      result = result.slice(0, result.length - (i - start));
+      if (
+        local.length > 0 &&
+        lastDot > 0 &&
+        tld.length >= 2 &&
+        ((tld[0]! >= "a" && tld[0]! <= "z") ||
+          (tld[0]! >= "A" && tld[0]! <= "Z"))
+      ) {
+        result += EMAIL_TAG;
+      } else {
+        result += s.slice(start, end);
+      }
+      i = end;
+    } else {
+      result += s[i];
+      i++;
+    }
+  }
+  return result;
+}
 
 /** Keys whose whole value is PII (WhatsApp webhook identity/message fields). */
 const PII_KEY_RE =
@@ -129,8 +185,9 @@ function redactPhones(s: string): string {
 
 /** Pattern-level redaction of a plain string (phones and emails). */
 export function redactPii(value: string): string {
-  // Email first (non-overlapping), then linear phone scan
-  return redactPhones(value.replace(EMAIL_RE, EMAIL_TAG));
+  // Email first (linear scan), then linear phone scan — no regex on the
+  // untrusted path, so CodeQL's js/polynomial-redos has nothing to flag.
+  return redactPhones(redactEmails(value));
 }
 
 /** Redacts a single value given its key: full redaction for PII keys. */
