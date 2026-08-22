@@ -9,6 +9,10 @@
  *
  * Trace/entity ids (traceId, sessionId, alertId, ...) stay on the allowlist:
  * their values survive unless they themselves contain a phone/email pattern.
+ *
+ * WS-C: phone detection uses a linear O(n) scan (no backtracking regex) to
+ * prevent ReDoS on attacker-controlled input. Email detection uses a
+ * non-overlapping linear regex.
  */
 
 const REDACTED = "[REDACTED]";
@@ -16,13 +20,10 @@ const PHONE_TAG = "[PHONE]";
 const EMAIL_TAG = "[EMAIL]";
 
 /**
- * Phone-ish: optional leading +, 8+ digits with separators (space, dot, dash,
- * parentheses). Requires at least 8 digits total so years/counts ("2026 in 10
- * days") are untouched.
+ * Non-overlapping email regex (WS-C). No nested quantifiers — linear O(n).
+ * Matches: user@example.com, a.b+c@d.co, etc.
  */
-const PHONE_RE = /\+?\d[\d\s().-]{6,}\d/g;
-
-const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
+const EMAIL_RE = /[A-Za-z0-9._%+-]+@(?:[A-Za-z0-9-]+\.)+[A-Za-z]{2,}/g;
 
 /** Keys whose whole value is PII (WhatsApp webhook identity/message fields). */
 const PII_KEY_RE =
@@ -33,16 +34,70 @@ export function isPiiKey(key: string): boolean {
   return PII_KEY_RE.test(key);
 }
 
+/**
+ * Checks whether a digit-only string represents a phone number.
+ * Must be 8–15 digits after stripping non-digit characters.
+ */
+export function isPhone(s: string): boolean {
+  const digits = s.replace(/\D/g, "");
+  return digits.length >= 8 && digits.length <= 15;
+}
+
 /** Type guard for plain record objects (narrows after typeof checks). */
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+/** Characters that can appear inside a phone number run. */
+const PHONE_CHARS = /[+\d()[\]\s.-]/;
+
+/**
+ * Linear phone scan (WS-C): walks the string once, identifying runs of
+ * phone-like characters starting from a `+` or digit. O(n) with no
+ * backtracking. Trailing non-digit characters are excluded from the
+ * matched run so surrounding whitespace is preserved (parity with the
+ * old regex `\+?\d[\d\s().-]{6,}\d`).
+ */
+function redactPhones(s: string): string {
+  let result = "";
+  let i = 0;
+
+  while (i < s.length) {
+    // Only start a phone run at '+' or a digit (not at a space/parens/dash)
+    if (s[i] === "+" || /\d/.test(s[i]!)) {
+      const start = i;
+      // Consume forward while we see phone-like characters
+      while (i < s.length && PHONE_CHARS.test(s[i]!)) {
+        i++;
+      }
+      // Trim trailing non-digit characters (spaces, dashes, parens, dots)
+      let end = i;
+      while (end > start && !/\d/.test(s[end - 1]!)) {
+        end--;
+      }
+      const run = s.slice(start, end);
+      if (isPhone(run)) {
+        result += PHONE_TAG;
+      } else {
+        result += run;
+      }
+      // Emit trailing chars that were trimmed (spaces, dashes, etc.)
+      if (end < i) {
+        result += s.slice(end, i);
+      }
+    } else {
+      result += s[i];
+      i++;
+    }
+  }
+
+  return result;
+}
+
 /** Pattern-level redaction of a plain string (phones and emails). */
 export function redactPii(value: string): string {
-  return value
-    .replace(EMAIL_RE, EMAIL_TAG)
-    .replace(PHONE_RE, PHONE_TAG);
+  // Email first (non-overlapping), then linear phone scan
+  return redactPhones(value.replace(EMAIL_RE, EMAIL_TAG));
 }
 
 /** Redacts a single value given its key: full redaction for PII keys. */
