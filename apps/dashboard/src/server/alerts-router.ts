@@ -146,12 +146,13 @@ export function createAlertsRouter(deps: AlertsRouterDeps): Router {
       )
     : null;
 
-  router.use(
-    ["/alerts", "/alerts/:alertId/acknowledge", "/alerts/:alertId/resolve"],
-    authenticate,
-    ...(listRateLimit ? [listRateLimit] : []),
-    authorize
-  );
+  const alertChain = listRateLimit
+    ? [authenticate, listRateLimit, authorize]
+    : [authenticate, authorize];
+
+  router.use("/alerts", ...alertChain);
+  router.use("/alerts/:alertId/acknowledge", ...alertChain);
+  router.use("/alerts/:alertId/resolve", ...alertChain);
 
   router.get("/alerts", async (req, res) => {
     const parsed = listQuerySchema.safeParse(req.query);
