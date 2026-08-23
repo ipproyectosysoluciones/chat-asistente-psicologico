@@ -1,0 +1,71 @@
+name: Bug report
+description: Reporta un error en Chat Asistente Psicológico
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por reportar un bug. Completa los campos con la mayor precisión posible.
+        **Nunca incluyas secretos, API keys, tokens ni datos clínicos/PII.** Usa datos de prueba.
+  - type: input
+    id: summary
+    attributes:
+      label: Resumen
+      description: Descripción corta y clara del error.
+      placeholder: "El chat-bot no emite respuesta fundamentada en..."
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Entorno
+      description: Rama/versión, SO, Node, Docker, pnpm. Ej. dev @ abc123, Ubuntu 24.04, node 22, docker 27.
+      placeholder: "rama dev, node 22, docker compose"
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Pasos para reproducir
+      description: Pasos numerados para reproducir el comportamiento.
+      placeholder: |
+        1. Levantar con `docker compose up -d`
+        2. Enviar mensaje X por WhatsApp
+        3. ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Comportamiento esperado
+      description: Qué debería ocurrir.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Comportamiento actual
+      description: Qué ocurre en realidad.
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / traza (sin PII)
+      description: Pega logs relevantes tras haber eliminado cualquier dato sensible o clínico.
+      render: shell
+    validations:
+      required: false
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Gravedad
+      description: Impacto estimado del bug.
+      options:
+        - "crítica (datos/privacidad/seguridad en riesgo)"
+        - "alta (funcionalidad rota, sin workaround)"
+        - "media (funcionalidad degradada, hay workaround)"
+        - "baja (cosmética / menor)"
+    validations:
+      required: true

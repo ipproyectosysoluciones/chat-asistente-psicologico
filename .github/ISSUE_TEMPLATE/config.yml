@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: "Dudas de seguridad / vulnerabilidades"
+    url: "mailto:security@chatcap.example"
+    about: "Reporta vulnerabilidades de forma confidencial a security@chatcap.example. No abras issues públicos de seguridad."
+  - name: "Cómo contribuir"
+    url: "https://github.com/ipproyectosysoluciones/Chat-Asistente-Psicologico/blob/dev/CONTRIBUTING.md"
+    about: "Lee el modelo de ramas (dev → feat/* → dev → main) y el estilo de código antes de abrir un PR."
