@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import express, { type Express } from "express";
+import express, { type Express, Router } from "express";
 import type { Server } from "node:http";
 
 import type { NewAuditEntry } from "@chatcap/db-schema";
@@ -89,12 +89,13 @@ describe("authenticate middleware", () => {
   it("sets the principal for a valid token and passes through", async () => {
     const seen: Array<string | undefined> = [];
     const app: Express = express();
-    // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
-    app.use("/p", createAuthenticate(authDeps()), testRateLimit);
-    app.get("/p", (req, res) => {
+    const router = Router();
+    router.use("/p", createAuthenticate(authDeps()), testRateLimit);
+    router.get("/p", (req, res) => {
       seen.push(req.principal?.userId);
       res.status(200).json({ ok: true });
     });
+    app.use(router);
     const baseUrl = await startServer(app);
 
     const response = await fetch(`${baseUrl}/p`, { headers: bearer(adminToken()) });
@@ -104,9 +105,10 @@ describe("authenticate middleware", () => {
 
   it("rejects a request without an Authorization header (401)", async () => {
     const app: Express = express();
-    // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
-    app.use("/p", createAuthenticate(authDeps()), testRateLimit);
-    app.get("/p", (_req, res) => res.status(200).end());
+    const router = Router();
+    router.use("/p", createAuthenticate(authDeps()), testRateLimit);
+    router.get("/p", (_req, res) => res.status(200).end());
+    app.use(router);
     const baseUrl = await startServer(app);
 
     const response = await fetch(`${baseUrl}/p`);
@@ -117,12 +119,13 @@ describe("authenticate middleware", () => {
   it("rejects an invalid/expired token (401, no downstream call)", async () => {
     const called: unknown[] = [];
     const app: Express = express();
-    // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
-    app.use("/p", createAuthenticate(authDeps()), testRateLimit);
-    app.get("/p", (_req, res) => {
+    const router = Router();
+    router.use("/p", createAuthenticate(authDeps()), testRateLimit);
+    router.get("/p", (_req, res) => {
       called.push(1);
       res.status(200).end();
     });
+    app.use(router);
     const baseUrl = await startServer(app);
 
     const response = await fetch(`${baseUrl}/p`, {
