@@ -90,7 +90,8 @@ describe("authenticate middleware", () => {
     const seen: Array<string | undefined> = [];
     const app: Express = express();
     // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
-    app.get("/p", createAuthenticate(authDeps()), testRateLimit, (req, res) => {
+    app.use("/p", createAuthenticate(authDeps()), testRateLimit);
+    app.get("/p", (req, res) => {
       seen.push(req.principal?.userId);
       res.status(200).json({ ok: true });
     });
@@ -104,7 +105,8 @@ describe("authenticate middleware", () => {
   it("rejects a request without an Authorization header (401)", async () => {
     const app: Express = express();
     // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
-    app.get("/p", createAuthenticate(authDeps()), testRateLimit, (_req, res) => res.status(200).end());
+    app.use("/p", createAuthenticate(authDeps()), testRateLimit);
+    app.get("/p", (_req, res) => res.status(200).end());
     const baseUrl = await startServer(app);
 
     const response = await fetch(`${baseUrl}/p`);
@@ -116,7 +118,8 @@ describe("authenticate middleware", () => {
     const called: unknown[] = [];
     const app: Express = express();
     // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
-    app.get("/p", createAuthenticate(authDeps()), testRateLimit, (_req, res) => {
+    app.use("/p", createAuthenticate(authDeps()), testRateLimit);
+    app.get("/p", (_req, res) => {
       called.push(1);
       res.status(200).end();
     });
