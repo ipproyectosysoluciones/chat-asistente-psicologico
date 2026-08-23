@@ -149,41 +149,41 @@ export function createApp(deps: AppDeps): Express {
   // router so these POST paths never pass the chats /chats-wide auth gate
   // twice. Supervisor/admin only — RBAC denials are audit-logged (REQ-DASH-1).
   if (deps.takeover !== undefined) {
-    app.use(createTakeoverRouter(deps.takeover));
+    app.use(createTakeoverRouter({ ...deps.takeover, rateLimiter: deps.rateLimiter }));
   }
 
   // Alerts API (task 5.4, REQ-DASH-4): live alert feed + acknowledge/resolve
   // lifecycle. Mounted before the chats router so `/alerts*` answers JSON.
   if (deps.alerts !== undefined) {
-    app.use(createAlertsRouter(deps.alerts));
+    app.use(createAlertsRouter({ ...deps.alerts, rateLimiter: deps.rateLimiter }));
   }
 
   // Keys rotation monitor (task 5.6, REQ-KEY-3): supervisor/admin status +
   // admin-only rotate. Mounted after alerts, before chats/vectors so
   // `/api/v1/keys*` never hits the /chats-wide auth gate.
   if (deps.keys !== undefined) {
-    app.use(createKeysRouter(deps.keys));
+    app.use(createKeysRouter({ ...deps.keys, rateLimiter: deps.rateLimiter }));
   }
 
   // Vectors API (task 5.5 core, REQ-DASH-RAG-7): manual re-ranking + chunk
   // removal over the vector store. Mounted before the chats router so
   // `/api/v1/vectors*` answers JSON and never hits the /chats-wide auth gate.
   if (deps.vectors !== undefined) {
-    app.use(createVectorsRouter(deps.vectors));
+    app.use(createVectorsRouter({ ...deps.vectors, rateLimiter: deps.rateLimiter }));
   }
 
   // QR validator API (task 5.7, REQ-KEY-7): validity probe for supervisor-
   // issued consent QR codes. Mounted after keys/vectors, before chats so
   // `/api/v1/qr*` answers JSON and never hits the /chats-wide auth gate.
   if (deps.qr !== undefined) {
-    app.use(createQrRouter(deps.qr));
+    app.use(createQrRouter({ ...deps.qr, rateLimiter: deps.rateLimiter }));
   }
 
   // Audit-log panel (task 5.8, REQ-DASH-8): supervisor/admin audit-trail feed.
   // Mounted after qr, before chats so `/api/v1/audit*` answers JSON and never
   // hits the /chats-wide auth gate.
   if (deps.auditLog !== undefined) {
-    app.use(createAuditRouter(deps.auditLog));
+    app.use(createAuditRouter({ ...deps.auditLog, rateLimiter: deps.rateLimiter }));
   }
 
   // Legal-framework terms panel (task 5.8, REQ-DASH-8): supervisor/admin list
@@ -191,7 +191,7 @@ export function createApp(deps: AppDeps): Express {
   // `/api/v1/legal-frameworks*` answers JSON and never hits the /chats-wide
   // auth gate.
   if (deps.frameworks !== undefined) {
-    app.use(createFrameworksRouter(deps.frameworks));
+    app.use(createFrameworksRouter({ ...deps.frameworks, rateLimiter: deps.rateLimiter }));
   }
 
   // Chats API (task 5.2, REQ-DASH-2/9): mounted before client serving so
@@ -202,6 +202,7 @@ export function createApp(deps: AppDeps): Express {
       users: deps.users,
       audit: deps.audit,
       chats: deps.chats,
+      rateLimiter: deps.rateLimiter,
     })
   );
 

@@ -38,6 +38,7 @@ afterEach(async () => {
 
 async function startServer(distDir: string): Promise<string> {
   const app = express();
+  // CodeQL [js/missing-rate-limiting] test-only static serving mount, not a production route
   app.use(createClientServing(distDir));
   app.use(notFoundHandler);
   const server = app.listen(0, "127.0.0.1");

@@ -13,6 +13,10 @@ import {
 } from "./auth/middleware";
 import type { JwtConfig } from "./auth/jwt";
 import type { AuthUsers } from "./auth/auth-router";
+import {
+  createCriticalRateLimit,
+  type RateLimiterMemory,
+} from "./middleware/rate-limit";
 
 /**
  * Audit-log panel router (task 5.8, REQ-DASH-8): GET `/api/v1/audit` serves the
@@ -37,6 +41,8 @@ export interface AuditRouterDeps {
   users: AuthUsers;
   audit: AuditWriter;
   auditLog: AuditLogPort;
+  /** Shared rate limiter for critical endpoints (design §B5). */
+  rateLimiter?: RateLimiterMemory;
 }
 
 const AUDIT_ROLES: Role[] = ["supervisor", "admin"];
@@ -81,9 +87,18 @@ export function createAuditRouter(deps: AuditRouterDeps): Router {
     audit: deps.audit,
   });
 
-  router.use("/api/v1/audit", authenticate, authorize);
+  const auditRateLimit = deps.rateLimiter
+    ? createCriticalRateLimit(
+        deps.rateLimiter,
+        (req) => req.principal?.userId ?? req.ip ?? "unknown"
+      )
+    : null;
 
-  router.get("/api/v1/audit", async (req, res) => {
+  const auditChain = auditRateLimit
+    ? [authenticate, auditRateLimit, authorize]
+    : [authenticate, authorize];
+
+  router.get("/api/v1/audit", ...auditChain, async (req, res) => {
     const parsed = auditQuerySchema.safeParse(req.query);
     if (!parsed.success) {
       validationError(

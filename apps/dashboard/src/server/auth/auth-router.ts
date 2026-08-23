@@ -95,7 +95,18 @@ export function createAuthRouter(deps: AuthDeps): Router {
     });
   });
 
-  router.get("/auth/me", authenticate, async (req, res) => {
+  const meRateLimit = deps.rateLimiter
+    ? createCriticalRateLimit(
+        deps.rateLimiter,
+        (req) => req.principal?.userId ?? req.ip ?? "unknown"
+      )
+    : null;
+
+  const meChain = meRateLimit ? [authenticate, meRateLimit] : [authenticate];
+  router.get(
+    "/auth/me",
+    ...meChain,
+    async (req, res) => {
     const principal = req.principal;
     if (principal === undefined) {
       problemResponse(res, {
