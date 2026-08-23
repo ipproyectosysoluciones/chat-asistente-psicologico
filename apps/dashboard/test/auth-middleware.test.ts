@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import express, { type Express } from "express";
+import express, { type Express, Router } from "express";
 import type { Server } from "node:http";
 
 import type { NewAuditEntry } from "@chatcap/db-schema";
@@ -13,6 +13,7 @@ import {
 } from "../src/server/auth/middleware";
 import type { JwtConfig } from "../src/server/auth/jwt";
 import { signAccessToken } from "../src/server/auth/jwt";
+import { rateLimit } from "express-rate-limit";
 
 /**
  * Middleware chain (design §3.3, REQ-DASH-1): authenticate → authorize(role)
@@ -24,6 +25,8 @@ import { signAccessToken } from "../src/server/auth/jwt";
 const JWT: JwtConfig = { secret: "j".repeat(32), ttlSeconds: 900 };
 const ADMIN = "00000000-0000-7000-8000-0000000000aa";
 const SUPERVISOR = "00000000-0000-7000-8000-0000000000bb";
+
+const testRateLimit = rateLimit({ windowMs: 60_000, limit: 1000 });
 
 function adminToken(): string {
   return signAccessToken(JWT, { sub: ADMIN, role: "admin" });
@@ -86,10 +89,13 @@ describe("authenticate middleware", () => {
   it("sets the principal for a valid token and passes through", async () => {
     const seen: Array<string | undefined> = [];
     const app: Express = express();
-    app.get("/p", createAuthenticate(authDeps()), (req, res) => {
+    const router = Router();
+    router.use("/p", createAuthenticate(authDeps()), testRateLimit);
+    router.get("/p", (req, res) => {
       seen.push(req.principal?.userId);
       res.status(200).json({ ok: true });
     });
+    app.use(router);
     const baseUrl = await startServer(app);
 
     const response = await fetch(`${baseUrl}/p`, { headers: bearer(adminToken()) });
@@ -99,7 +105,10 @@ describe("authenticate middleware", () => {
 
   it("rejects a request without an Authorization header (401)", async () => {
     const app: Express = express();
-    app.get("/p", createAuthenticate(authDeps()), (_req, res) => res.status(200).end());
+    const router = Router();
+    router.use("/p", createAuthenticate(authDeps()), testRateLimit);
+    router.get("/p", (_req, res) => res.status(200).end());
+    app.use(router);
     const baseUrl = await startServer(app);
 
     const response = await fetch(`${baseUrl}/p`);
@@ -110,10 +119,13 @@ describe("authenticate middleware", () => {
   it("rejects an invalid/expired token (401, no downstream call)", async () => {
     const called: unknown[] = [];
     const app: Express = express();
-    app.get("/p", createAuthenticate(authDeps()), (_req, res) => {
+    const router = Router();
+    router.use("/p", createAuthenticate(authDeps()), testRateLimit);
+    router.get("/p", (_req, res) => {
       called.push(1);
       res.status(200).end();
     });
+    app.use(router);
     const baseUrl = await startServer(app);
 
     const response = await fetch(`${baseUrl}/p`, {
@@ -128,8 +140,10 @@ describe("authorize middleware", () => {
   it("allows a supervisor on supervisor-scoped routes", async () => {
     const audit = recordingAudit();
     const app: Express = express();
+    // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
     app.get(
       "/chats",
+      testRateLimit,
       createAuthenticate(authDeps()),
       createAuthorize({
         allowedRoles: ["supervisor", "admin"],
@@ -151,8 +165,10 @@ describe("authorize middleware", () => {
   it("denies a supervisor an admin-only action and audit-logs the denial", async () => {
     const audit = recordingAudit();
     const app: Express = express();
+    // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
     app.get(
       "/keys",
+      testRateLimit,
       createAuthenticate(authDeps()),
       createAuthorize({
         allowedRoles: ["admin"],
@@ -205,8 +221,10 @@ describe("audit middleware", () => {
   it("records successful access with the acting principal", async () => {
     const audit = recordingAudit();
     const app: Express = express();
+    // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
     app.get(
       "/chats/:id",
+      testRateLimit,
       createAuthenticate(authDeps()),
       createAuditMiddleware({
         action: "chat_access",
@@ -236,8 +254,10 @@ describe("audit middleware", () => {
   it("does not record an audit entry for error responses", async () => {
     const audit = recordingAudit();
     const app: Express = express();
+    // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
     app.get(
       "/chats/:id",
+      testRateLimit,
       createAuthenticate(authDeps()),
       createAuditMiddleware({
         action: "chat_access",

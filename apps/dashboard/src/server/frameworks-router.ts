@@ -12,6 +12,10 @@ import {
 } from "./auth/middleware";
 import type { JwtConfig } from "./auth/jwt";
 import type { AuthUsers } from "./auth/auth-router";
+import {
+  createCriticalRateLimit,
+  type RateLimiterMemory,
+} from "./middleware/rate-limit";
 
 /**
  * Legal-frameworks panel router (task 5.8, REQ-DASH-8): GET
@@ -41,6 +45,8 @@ export interface FrameworksRouterDeps {
   frameworks: FrameworksPort;
   /** Best-effort audit-write error sink (mirrors alerts-router). */
   onAuditError?: (error: unknown) => void;
+  /** Shared rate limiter for critical mutating endpoints (design §B5). */
+  rateLimiter?: RateLimiterMemory;
 }
 
 const FRAMEWORKS_VIEW_ROLES: Role[] = ["supervisor", "admin"];
@@ -100,11 +106,18 @@ export function createFrameworksRouter(deps: FrameworksRouterDeps): Router {
     audit: deps.audit,
   });
 
-  router.get(
-    "/api/v1/legal-frameworks",
-    authenticate,
-    authorizeView,
-    async (_req, res) => {
+  const viewRateLimit = deps.rateLimiter
+    ? createCriticalRateLimit(
+        deps.rateLimiter,
+        (req) => req.principal?.userId ?? req.ip ?? "unknown"
+      )
+    : null;
+
+  const frameworkViewChain = viewRateLimit
+    ? [authenticate, viewRateLimit, authorizeView]
+    : [authenticate, authorizeView];
+  router.use("/api/v1/legal-frameworks", ...frameworkViewChain);
+  router.get("/api/v1/legal-frameworks", async (_req, res) => {
       try {
         const frameworks = await deps.frameworks.list();
         res.status(200).json({ frameworks });
@@ -120,10 +133,20 @@ export function createFrameworksRouter(deps: FrameworksRouterDeps): Router {
     }
   );
 
+  const publishRateLimit = deps.rateLimiter
+    ? createCriticalRateLimit(
+        deps.rateLimiter,
+        (req) => req.principal?.userId ?? req.ip ?? "unknown"
+      )
+    : null;
+
+  const publishChain = publishRateLimit
+    ? [authenticate, publishRateLimit, authorizePublish]
+    : [authenticate, authorizePublish];
+
   router.post(
     "/api/v1/legal-frameworks",
-    authenticate,
-    authorizePublish,
+    ...publishChain,
     async (req, res) => {
       const parsed = publishBodySchema.safeParse(req.body);
       if (!parsed.success) {

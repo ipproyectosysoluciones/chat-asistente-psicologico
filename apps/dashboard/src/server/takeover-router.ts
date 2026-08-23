@@ -16,6 +16,10 @@ import {
 } from "./auth/middleware";
 import type { JwtConfig } from "./auth/jwt";
 import type { AuthUsers } from "./auth/auth-router";
+import {
+  createCriticalRateLimit,
+  type RateLimiterMemory,
+} from "./middleware/rate-limit";
 
 /**
  * Takeover/release router (task 5.3, REQ-DASH-3 / design §3.1): POST
@@ -57,6 +61,8 @@ export interface TakeoverRouterDeps {
    * (production: logger.error). Tests leave it unset.
    */
   onAuditError?(error: unknown): void;
+  /** Shared rate limiter for critical mutating endpoints (design §B5). */
+  rateLimiter?: RateLimiterMemory;
 }
 
 const TAKE_OVER_ROLES = ["supervisor", "admin"] as const;
@@ -123,10 +129,20 @@ export function createTakeoverRouter(deps: TakeoverRouterDeps): Router {
     audit: deps.audit,
   });
 
+  const rateLimit = deps.rateLimiter
+    ? createCriticalRateLimit(
+        deps.rateLimiter,
+        (req) => req.principal?.userId ?? req.ip ?? "unknown"
+      )
+    : null;
+
+  const authChain = rateLimit
+    ? [authenticate, rateLimit, authorize]
+    : [authenticate, authorize];
+
   router.use(
     ["/chats/:sessionId/takeover", "/chats/:sessionId/release"],
-    authenticate,
-    authorize
+    ...authChain
   );
 
   router.post("/chats/:sessionId/takeover", async (req, res) => {

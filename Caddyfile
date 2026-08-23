@@ -13,6 +13,12 @@
 #   4. everything else (dashboard UI + API)  -> dashboard:3000
 # notifications is internal-only (no public route) and reached via the
 # private Docker network by other services.
+#
+# Rate limiting (WS-B edge layer, design §B1):
+#   - Global IP-based rate_limit via caddy-ratelimit plugin
+#   - Configurable via RATE_LIMIT_REQUESTS / RATE_LIMIT_WINDOW env vars
+#   - Default: 100 requests per 10s per IP
+#   - /healthz and /readyz are exempt (placed before rate_limit)
 # =============================================================================
 
 # Shared route table, reused by the :80 and :443 site blocks.
@@ -35,10 +41,40 @@
 }
 
 :80 {
+	# Health probes — exempt from rate limiting
+	handle /healthz {
+		reverse_proxy dashboard:3000
+	}
+	handle /readyz {
+		reverse_proxy dashboard:3000
+	}
+
+	# Global IP rate limit (design §B1, spec: edge-rate-limiting)
+	rate_limit {
+		# Configurable via environment; defaults: 100 requests / 10s per IP
+		events {env.RATE_LIMIT_REQUESTS 100}
+		window {env.RATE_LIMIT_WINDOW 10s}
+	}
+
 	import route
 }
 
 :443 {
 	tls internal
+
+	# Health probes — exempt from rate limiting
+	handle /healthz {
+		reverse_proxy dashboard:3000
+	}
+	handle /readyz {
+		reverse_proxy dashboard:3000
+	}
+
+	# Global IP rate limit (design §B1, spec: edge-rate-limiting)
+	rate_limit {
+		events {env.RATE_LIMIT_REQUESTS 100}
+		window {env.RATE_LIMIT_WINDOW 10s}
+	}
+
 	import route
 }

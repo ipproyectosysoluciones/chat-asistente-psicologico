@@ -2,6 +2,10 @@ packages:
   - "apps/*"
   - "packages/*"
 
+overrides:
+  glob: ">=11.1.0"
+  uuid: ">=11.1.1"
+
 # Single source of truth for shared toolchain versions across the monorepo.
 # Referenced as "catalog:" in each package's devDependencies.
 catalog:

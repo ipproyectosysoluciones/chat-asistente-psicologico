@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isPhone,
   isPiiKey,
   redactPii,
   redactPiiObject,
@@ -92,5 +93,50 @@ describe("redactor: object deep redaction", () => {
   it("redacts emails inside nested arrays of strings", () => {
     const result = redactPiiObject({ list: ["a@b.com", "ok"] });
     expect(result.list).toEqual(["[EMAIL]", "ok"]);
+  });
+});
+
+describe("redactor: isPhone helper", () => {
+  it("returns true for valid 8-15 digit strings", () => {
+    expect(isPhone("5491155551234")).toBe(true);
+    expect(isPhone("12345678")).toBe(true);
+    expect(isPhone("123456789012345")).toBe(true);
+  });
+
+  it("returns false for short strings", () => {
+    expect(isPhone("1234567")).toBe(false);
+    expect(isPhone("2026")).toBe(false);
+  });
+
+  it("returns false for long strings", () => {
+    expect(isPhone("1234567890123456")).toBe(false);
+  });
+});
+
+describe("redactor: ReDoS adversarial input (no backtracking)", () => {
+  it("completes adversarial phone-like input in <50ms", () => {
+    const adversarial = "电话+12345678901234567890";
+    const start = performance.now();
+    const result = redactPii(adversarial);
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(50);
+    // Should not match as phone (16+ digits)
+    expect(result).toBe(adversarial);
+  });
+
+  it("handles long adversarial email-like input without hanging", () => {
+    const adversarial = "a".repeat(200) + "@b.c";
+    const start = performance.now();
+    redactPii(adversarial);
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(50);
+  });
+
+  it("handles mixed adversarial payload in <50ms", () => {
+    const adversarial = "+".repeat(50) + " " + "a".repeat(200);
+    const start = performance.now();
+    redactPii(adversarial);
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(50);
   });
 });

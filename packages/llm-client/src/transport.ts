@@ -20,7 +20,11 @@ export class FetchOpenAiTransport implements ChatTransport {
 
   constructor(options: FetchTransportOptions) {
     this.apiKey = options.apiKey;
-    this.baseUrl = options.baseUrl.replace(/\/+$/, "");
+    let baseUrl = options.baseUrl;
+    while (baseUrl.endsWith("/")) {
+      baseUrl = baseUrl.slice(0, -1);
+    }
+    this.baseUrl = baseUrl;
   }
 
   async request<T>(url: string, body: unknown): Promise<T> {

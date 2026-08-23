@@ -16,6 +16,10 @@ import {
 } from "./auth/middleware";
 import type { JwtConfig } from "./auth/jwt";
 import type { AuthUsers } from "./auth/auth-router";
+import {
+  createCriticalRateLimit,
+  type RateLimiterMemory,
+} from "./middleware/rate-limit";
 
 /**
  * Alerts router (task 5.4, REQ-DASH-4 / design §3.1): GET /alerts serves the
@@ -57,6 +61,8 @@ export interface AlertsRouterDeps {
    * (production: logger.error). Tests leave it unset.
    */
   onAuditError?(error: unknown): void;
+  /** Shared rate limiter for critical endpoints (design §B5). */
+  rateLimiter?: RateLimiterMemory;
 }
 
 const ALERT_ROLES: Role[] = ["supervisor", "admin"];
@@ -133,11 +139,20 @@ export function createAlertsRouter(deps: AlertsRouterDeps): Router {
     audit: deps.audit,
   });
 
-  router.use(
-    ["/alerts", "/alerts/:alertId/acknowledge", "/alerts/:alertId/resolve"],
-    authenticate,
-    authorize
-  );
+  const listRateLimit = deps.rateLimiter
+    ? createCriticalRateLimit(
+        deps.rateLimiter,
+        (req) => req.principal?.userId ?? req.ip ?? "unknown"
+      )
+    : null;
+
+  const alertChain = listRateLimit
+    ? [authenticate, listRateLimit, authorize]
+    : [authenticate, authorize];
+
+  router.use("/alerts", ...alertChain);
+  router.use("/alerts/:alertId/acknowledge", ...alertChain);
+  router.use("/alerts/:alertId/resolve", ...alertChain);
 
   router.get("/alerts", async (req, res) => {
     const parsed = listQuerySchema.safeParse(req.query);
