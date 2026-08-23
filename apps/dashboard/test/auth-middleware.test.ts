@@ -143,8 +143,8 @@ describe("authorize middleware", () => {
     // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
     app.get(
       "/chats",
-      createAuthenticate(authDeps()),
       testRateLimit,
+      createAuthenticate(authDeps()),
       createAuthorize({
         allowedRoles: ["supervisor", "admin"],
         deniedAction: "dashboard_chats_denied",
@@ -168,8 +168,8 @@ describe("authorize middleware", () => {
     // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
     app.get(
       "/keys",
-      createAuthenticate(authDeps()),
       testRateLimit,
+      createAuthenticate(authDeps()),
       createAuthorize({
         allowedRoles: ["admin"],
         deniedAction: "dashboard_keys_denied",
@@ -224,8 +224,8 @@ describe("audit middleware", () => {
     // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
     app.get(
       "/chats/:id",
-      createAuthenticate(authDeps()),
       testRateLimit,
+      createAuthenticate(authDeps()),
       createAuditMiddleware({
         action: "chat_access",
         resourceType: "chat",
@@ -257,8 +257,8 @@ describe("audit middleware", () => {
     // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
     app.get(
       "/chats/:id",
-      createAuthenticate(authDeps()),
       testRateLimit,
+      createAuthenticate(authDeps()),
       createAuditMiddleware({
         action: "chat_access",
         resourceType: "chat",
