@@ -102,10 +102,10 @@ export function createAuthRouter(deps: AuthDeps): Router {
       )
     : null;
 
+  const meChain = meRateLimit ? [authenticate, meRateLimit] : [authenticate];
   router.get(
     "/auth/me",
-    authenticate,
-    ...(meRateLimit ? [meRateLimit] : []),
+    ...meChain,
     async (req, res) => {
     const principal = req.principal;
     if (principal === undefined) {

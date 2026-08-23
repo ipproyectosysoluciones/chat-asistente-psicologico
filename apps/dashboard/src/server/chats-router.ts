@@ -91,12 +91,10 @@ export function createChatsRouter(deps: ChatsRouterDeps): Router {
       )
     : null;
 
-  router.get(
-    "/chats",
-    authenticate,
-    ...(chatsRateLimit ? [chatsRateLimit] : []),
-    authorize,
-    async (req, res) => {
+  const chatsListChain = chatsRateLimit
+    ? [authenticate, chatsRateLimit, authorize]
+    : [authenticate, authorize];
+  router.get("/chats", ...chatsListChain, async (req, res) => {
     const parsed = listQuerySchema.safeParse(req.query);
     if (!parsed.success) {
       problemResponse(res, {
@@ -112,11 +110,12 @@ export function createChatsRouter(deps: ChatsRouterDeps): Router {
     res.status(200).json({ items: page.items, total: page.total });
   });
 
+  const chatsDetailChain = chatsRateLimit
+    ? [authenticate, chatsRateLimit, authorize]
+    : [authenticate, authorize];
   router.get(
     "/chats/:sessionId",
-    authenticate,
-    ...(chatsRateLimit ? [chatsRateLimit] : []),
-    authorize,
+    ...chatsDetailChain,
     createAuditMiddleware({
       action: "chat_detail_access",
       resourceType: CHAT_RESOURCE_TYPE,

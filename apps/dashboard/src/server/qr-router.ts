@@ -119,14 +119,11 @@ export function createQrRouter(deps: QrRouterDeps): Router {
       )
     : null;
 
-  router.use(
-    "/api/v1/qr/validate",
-    authenticate,
-    ...(qrRateLimit ? [qrRateLimit] : []),
-    authorize
-  );
+  const qrChain = qrRateLimit
+    ? [authenticate, qrRateLimit, authorize]
+    : [authenticate, authorize];
 
-  router.get("/api/v1/qr/validate", async (req, res) => {
+  router.get("/api/v1/qr/validate", ...qrChain, async (req, res) => {
     // Parse the `payload` query param as JSON first; a missing/non-string or
     // unparseable value is a 400 malformed_payload (transport error, not a
     // validity probe result).

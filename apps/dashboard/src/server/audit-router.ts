@@ -94,14 +94,11 @@ export function createAuditRouter(deps: AuditRouterDeps): Router {
       )
     : null;
 
-  router.use(
-    "/api/v1/audit",
-    authenticate,
-    ...(auditRateLimit ? [auditRateLimit] : []),
-    authorize
-  );
+  const auditChain = auditRateLimit
+    ? [authenticate, auditRateLimit, authorize]
+    : [authenticate, authorize];
 
-  router.get("/api/v1/audit", async (req, res) => {
+  router.get("/api/v1/audit", ...auditChain, async (req, res) => {
     const parsed = auditQuerySchema.safeParse(req.query);
     if (!parsed.success) {
       validationError(
