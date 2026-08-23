@@ -141,9 +141,17 @@ export function createKeysRouter(deps: KeysRouterDeps): Router {
     audit: deps.audit,
   });
 
+  const viewRateLimit = deps.rateLimiter
+    ? createCriticalRateLimit(
+        deps.rateLimiter,
+        (req) => req.principal?.userId ?? req.ip ?? "unknown"
+      )
+    : null;
+
   router.get(
     "/api/v1/keys/rotation",
     authenticate,
+    ...(viewRateLimit ? [viewRateLimit] : []),
     authorizeView,
     async (_req, res) => {
       const status = await deps.rotation.status();

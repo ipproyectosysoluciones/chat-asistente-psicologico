@@ -19,6 +19,10 @@ import {
 } from "./auth/middleware";
 import type { JwtConfig } from "./auth/jwt";
 import type { AuthUsers } from "./auth/auth-router";
+import {
+  createCriticalRateLimit,
+  type RateLimiterMemory,
+} from "./middleware/rate-limit";
 
 /**
  * Chats router (task 5.2, REQ-DASH-2/9 / design §3.1): paginated chat list
@@ -46,6 +50,8 @@ export interface ChatsRouterDeps {
   users: AuthUsers;
   audit: AuditWriter;
   chats: ChatsRepository;
+  /** Shared rate limiter for critical endpoints (design §B5). */
+  rateLimiter?: RateLimiterMemory;
 }
 
 const CHAT_ROLES: Role[] = ["supervisor", "admin"];
@@ -78,7 +84,19 @@ export function createChatsRouter(deps: ChatsRouterDeps): Router {
     audit: deps.audit,
   });
 
-  router.get("/chats", authenticate, authorize, async (req, res) => {
+  const chatsRateLimit = deps.rateLimiter
+    ? createCriticalRateLimit(
+        deps.rateLimiter,
+        (req) => req.principal?.userId ?? req.ip ?? "unknown"
+      )
+    : null;
+
+  router.get(
+    "/chats",
+    authenticate,
+    ...(chatsRateLimit ? [chatsRateLimit] : []),
+    authorize,
+    async (req, res) => {
     const parsed = listQuerySchema.safeParse(req.query);
     if (!parsed.success) {
       problemResponse(res, {
@@ -97,6 +115,7 @@ export function createChatsRouter(deps: ChatsRouterDeps): Router {
   router.get(
     "/chats/:sessionId",
     authenticate,
+    ...(chatsRateLimit ? [chatsRateLimit] : []),
     authorize,
     createAuditMiddleware({
       action: "chat_detail_access",

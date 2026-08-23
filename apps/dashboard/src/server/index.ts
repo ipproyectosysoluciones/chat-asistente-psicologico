@@ -48,6 +48,7 @@ import type { QrPayload } from "@chatcap/shared-types";
 
 import { bootstrapAdmin } from "./auth/admin-bootstrap";
 import { createApp } from "./app";
+import { createRateLimiter } from "./middleware/rate-limit";
 import {
   subscribeAlertChannel,
   type AlertSubscriber,
@@ -75,8 +76,11 @@ export async function startDashboard(config: AppConfig): Promise<{
   // the live supervisor UI stays in sync without polling.
   let io: SocketIoServer | undefined;
 
+  const rateLimiter = createRateLimiter();
+
   const app = createApp({
     logger,
+    rateLimiter,
     jwt: {
       secret: config.jwtSecret,
       ttlSeconds: config.dashboard.jwtTtlMinutes * 60,

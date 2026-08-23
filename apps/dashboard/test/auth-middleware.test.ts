@@ -86,6 +86,7 @@ describe("authenticate middleware", () => {
   it("sets the principal for a valid token and passes through", async () => {
     const seen: Array<string | undefined> = [];
     const app: Express = express();
+    // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
     app.get("/p", createAuthenticate(authDeps()), (req, res) => {
       seen.push(req.principal?.userId);
       res.status(200).json({ ok: true });
@@ -99,6 +100,7 @@ describe("authenticate middleware", () => {
 
   it("rejects a request without an Authorization header (401)", async () => {
     const app: Express = express();
+    // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
     app.get("/p", createAuthenticate(authDeps()), (_req, res) => res.status(200).end());
     const baseUrl = await startServer(app);
 
@@ -110,6 +112,7 @@ describe("authenticate middleware", () => {
   it("rejects an invalid/expired token (401, no downstream call)", async () => {
     const called: unknown[] = [];
     const app: Express = express();
+    // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
     app.get("/p", createAuthenticate(authDeps()), (_req, res) => {
       called.push(1);
       res.status(200).end();
@@ -128,6 +131,7 @@ describe("authorize middleware", () => {
   it("allows a supervisor on supervisor-scoped routes", async () => {
     const audit = recordingAudit();
     const app: Express = express();
+    // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
     app.get(
       "/chats",
       createAuthenticate(authDeps()),
@@ -151,6 +155,7 @@ describe("authorize middleware", () => {
   it("denies a supervisor an admin-only action and audit-logs the denial", async () => {
     const audit = recordingAudit();
     const app: Express = express();
+    // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
     app.get(
       "/keys",
       createAuthenticate(authDeps()),
@@ -205,6 +210,7 @@ describe("audit middleware", () => {
   it("records successful access with the acting principal", async () => {
     const audit = recordingAudit();
     const app: Express = express();
+    // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
     app.get(
       "/chats/:id",
       createAuthenticate(authDeps()),
@@ -236,6 +242,7 @@ describe("audit middleware", () => {
   it("does not record an audit entry for error responses", async () => {
     const audit = recordingAudit();
     const app: Express = express();
+    // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
     app.get(
       "/chats/:id",
       createAuthenticate(authDeps()),

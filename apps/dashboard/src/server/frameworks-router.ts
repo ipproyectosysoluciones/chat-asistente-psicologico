@@ -106,9 +106,17 @@ export function createFrameworksRouter(deps: FrameworksRouterDeps): Router {
     audit: deps.audit,
   });
 
+  const viewRateLimit = deps.rateLimiter
+    ? createCriticalRateLimit(
+        deps.rateLimiter,
+        (req) => req.principal?.userId ?? req.ip ?? "unknown"
+      )
+    : null;
+
   router.get(
     "/api/v1/legal-frameworks",
     authenticate,
+    ...(viewRateLimit ? [viewRateLimit] : []),
     authorizeView,
     async (_req, res) => {
       try {

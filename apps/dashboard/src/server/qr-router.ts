@@ -14,6 +14,10 @@ import {
 } from "./auth/middleware";
 import type { JwtConfig } from "./auth/jwt";
 import type { AuthUsers } from "./auth/auth-router";
+import {
+  createCriticalRateLimit,
+  type RateLimiterMemory,
+} from "./middleware/rate-limit";
 
 /**
  * QR validator router (task 5.7, REQ-KEY-7/REQ-DASH-8): GET
@@ -61,6 +65,8 @@ export interface QrRouterDeps {
   emit?: (event: string, payload: unknown) => void;
   /** Best-effort audit-write error sink (mirrors alerts-router). */
   onAuditError?: (error: unknown) => void;
+  /** Shared rate limiter for critical endpoints (design §B5). */
+  rateLimiter?: RateLimiterMemory;
 }
 
 const QR_ROLES: Role[] = ["supervisor", "admin"];
@@ -106,7 +112,19 @@ export function createQrRouter(deps: QrRouterDeps): Router {
     audit: deps.audit,
   });
 
-  router.use("/api/v1/qr/validate", authenticate, authorize);
+  const qrRateLimit = deps.rateLimiter
+    ? createCriticalRateLimit(
+        deps.rateLimiter,
+        (req) => req.principal?.userId ?? req.ip ?? "unknown"
+      )
+    : null;
+
+  router.use(
+    "/api/v1/qr/validate",
+    authenticate,
+    ...(qrRateLimit ? [qrRateLimit] : []),
+    authorize
+  );
 
   router.get("/api/v1/qr/validate", async (req, res) => {
     // Parse the `payload` query param as JSON first; a missing/non-string or
