@@ -1,0 +1,47 @@
+name: Feature request
+description: Propón una nueva funcionalidad para Chat Asistente Psicológico
+title: "[feat]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Gracias por proponer una mejora. Describe el problema y la solución propuesta.
+        Recuerda que el proyecto maneja datos clínicos sensibles: toda propuesta debe
+        preservar consentimiento, cifrado, RBAC y el coherence gate.
+  - type: input
+    id: summary
+    attributes:
+      label: Resumen
+      description: Descripción corta y clara de la funcionalidad.
+      placeholder: "Añadir soporte de métricas para el dashboard de alertas"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problema
+      description: ¿Qué problema o necesidad aborda esta propuesta? ¿Por qué importa?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solución propuesta
+      description: Describe la solución que propones, con el alcance y los servicios afectados.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternativas consideradas
+      description: ¿Evaluaste otras opciones? ¿Por qué no se eligieron?
+    validations:
+      required: false
+  - type: textarea
+    id: context
+    attributes:
+      label: Contexto adicional
+      description: Notas de seguridad/cumplimiento, dependencias, riesgos o capturas.
+    validations:
+      required: false
