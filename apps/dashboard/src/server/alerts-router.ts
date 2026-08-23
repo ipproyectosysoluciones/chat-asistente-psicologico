@@ -150,7 +150,11 @@ export function createAlertsRouter(deps: AlertsRouterDeps): Router {
     ? [authenticate, listRateLimit, authorize]
     : [authenticate, authorize];
 
-  router.get("/alerts", ...alertChain, async (req, res) => {
+  router.use("/alerts", ...alertChain);
+  router.use("/alerts/:alertId/acknowledge", ...alertChain);
+  router.use("/alerts/:alertId/resolve", ...alertChain);
+
+  router.get("/alerts", async (req, res) => {
     const parsed = listQuerySchema.safeParse(req.query);
     if (!parsed.success) {
       validationError(
@@ -163,7 +167,7 @@ export function createAlertsRouter(deps: AlertsRouterDeps): Router {
     res.status(200).json({ items: page.items, total: page.total });
   });
 
-  router.post("/alerts/:alertId/acknowledge", ...alertChain, async (req, res) => {
+  router.post("/alerts/:alertId/acknowledge", async (req, res) => {
     const parsed = alertIdSchema.safeParse(req.params.alertId);
     if (!parsed.success) {
       validationError(res, "alertId must be a valid UUID.");
@@ -210,7 +214,7 @@ export function createAlertsRouter(deps: AlertsRouterDeps): Router {
     res.status(200).json(updated);
   });
 
-  router.post("/alerts/:alertId/resolve", ...alertChain, async (req, res) => {
+  router.post("/alerts/:alertId/resolve", async (req, res) => {
     const parsedId = alertIdSchema.safeParse(req.params.alertId);
     if (!parsedId.success) {
       validationError(res, "alertId must be a valid UUID.");

@@ -151,7 +151,8 @@ export function createKeysRouter(deps: KeysRouterDeps): Router {
   const keyViewChain = viewRateLimit
     ? [authenticate, viewRateLimit, authorizeView]
     : [authenticate, authorizeView];
-  router.get("/api/v1/keys/rotation", ...keyViewChain, async (_req, res) => {
+  router.use("/api/v1/keys/rotation", ...keyViewChain);
+  router.get("/api/v1/keys/rotation", async (_req, res) => {
       const status = await deps.rotation.status();
       res.status(200).json({ status });
     }

@@ -3,7 +3,7 @@ import type { Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-import express from "express";
+import express, { type RequestHandler } from "express";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { notFoundHandler } from "../src/server/errors";
@@ -20,8 +20,12 @@ import { createCriticalRateLimit, createRateLimiter } from "../src/server/middle
 
 const servers: Server[] = [];
 
-const testRateLimiter = createRateLimiter();
-const testRateLimit = createCriticalRateLimit(testRateLimiter, (req) => req.ip ?? "test");
+function testRateLimit(): RequestHandler {
+  return createCriticalRateLimit(
+    createRateLimiter(),
+    (req) => req.principal?.userId ?? req.ip ?? "unknown"
+  );
+}
 const tempDirs: string[] = [];
 
 afterEach(async () => {
@@ -43,7 +47,7 @@ afterEach(async () => {
 async function startServer(distDir: string): Promise<string> {
   const app = express();
   // CodeQL [js/missing-rate-limiting] test-only static serving mount, not a production route
-  app.use(testRateLimit, createClientServing(distDir));
+  app.use(testRateLimit(), createClientServing(distDir));
   app.use(notFoundHandler);
   const server = app.listen(0, "127.0.0.1");
   servers.push(server);
