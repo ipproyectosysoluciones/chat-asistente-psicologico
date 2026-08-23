@@ -13,6 +13,7 @@ import {
 } from "../src/server/auth/middleware";
 import type { JwtConfig } from "../src/server/auth/jwt";
 import { signAccessToken } from "../src/server/auth/jwt";
+import { createCriticalRateLimit, createRateLimiter } from "../src/server/middleware/rate-limit";
 
 /**
  * Middleware chain (design §3.3, REQ-DASH-1): authenticate → authorize(role)
@@ -24,6 +25,9 @@ import { signAccessToken } from "../src/server/auth/jwt";
 const JWT: JwtConfig = { secret: "j".repeat(32), ttlSeconds: 900 };
 const ADMIN = "00000000-0000-7000-8000-0000000000aa";
 const SUPERVISOR = "00000000-0000-7000-8000-0000000000bb";
+
+const testRateLimiter = createRateLimiter();
+const testRateLimit = createCriticalRateLimit(testRateLimiter, (req) => req.ip ?? "test");
 
 function adminToken(): string {
   return signAccessToken(JWT, { sub: ADMIN, role: "admin" });
@@ -87,7 +91,7 @@ describe("authenticate middleware", () => {
     const seen: Array<string | undefined> = [];
     const app: Express = express();
     // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
-    app.get("/p", createAuthenticate(authDeps()), (req, res) => {
+    app.get("/p", createAuthenticate(authDeps()), testRateLimit, (req, res) => {
       seen.push(req.principal?.userId);
       res.status(200).json({ ok: true });
     });
@@ -101,7 +105,7 @@ describe("authenticate middleware", () => {
   it("rejects a request without an Authorization header (401)", async () => {
     const app: Express = express();
     // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
-    app.get("/p", createAuthenticate(authDeps()), (_req, res) => res.status(200).end());
+    app.get("/p", createAuthenticate(authDeps()), testRateLimit, (_req, res) => res.status(200).end());
     const baseUrl = await startServer(app);
 
     const response = await fetch(`${baseUrl}/p`);
@@ -113,7 +117,7 @@ describe("authenticate middleware", () => {
     const called: unknown[] = [];
     const app: Express = express();
     // CodeQL [js/missing-rate-limiting] test-only middleware mount, not a production route
-    app.get("/p", createAuthenticate(authDeps()), (_req, res) => {
+    app.get("/p", createAuthenticate(authDeps()), testRateLimit, (_req, res) => {
       called.push(1);
       res.status(200).end();
     });
@@ -135,6 +139,7 @@ describe("authorize middleware", () => {
     app.get(
       "/chats",
       createAuthenticate(authDeps()),
+      testRateLimit,
       createAuthorize({
         allowedRoles: ["supervisor", "admin"],
         deniedAction: "dashboard_chats_denied",
@@ -159,6 +164,7 @@ describe("authorize middleware", () => {
     app.get(
       "/keys",
       createAuthenticate(authDeps()),
+      testRateLimit,
       createAuthorize({
         allowedRoles: ["admin"],
         deniedAction: "dashboard_keys_denied",
@@ -214,6 +220,7 @@ describe("audit middleware", () => {
     app.get(
       "/chats/:id",
       createAuthenticate(authDeps()),
+      testRateLimit,
       createAuditMiddleware({
         action: "chat_access",
         resourceType: "chat",
@@ -246,6 +253,7 @@ describe("audit middleware", () => {
     app.get(
       "/chats/:id",
       createAuthenticate(authDeps()),
+      testRateLimit,
       createAuditMiddleware({
         action: "chat_access",
         resourceType: "chat",

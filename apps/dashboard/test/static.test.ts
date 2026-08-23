@@ -8,6 +8,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { notFoundHandler } from "../src/server/errors";
 import { createClientServing } from "../src/server/static";
+import { createCriticalRateLimit, createRateLimiter } from "../src/server/middleware/rate-limit";
 
 /**
  * Static client serving (task 5.1, design §7.1 "Vite static served by
@@ -18,6 +19,9 @@ import { createClientServing } from "../src/server/static";
  */
 
 const servers: Server[] = [];
+
+const testRateLimiter = createRateLimiter();
+const testRateLimit = createCriticalRateLimit(testRateLimiter, (req) => req.ip ?? "test");
 const tempDirs: string[] = [];
 
 afterEach(async () => {
@@ -39,7 +43,7 @@ afterEach(async () => {
 async function startServer(distDir: string): Promise<string> {
   const app = express();
   // CodeQL [js/missing-rate-limiting] test-only static serving mount, not a production route
-  app.use(createClientServing(distDir));
+  app.use(testRateLimit, createClientServing(distDir));
   app.use(notFoundHandler);
   const server = app.listen(0, "127.0.0.1");
   servers.push(server);

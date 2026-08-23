@@ -113,12 +113,10 @@ export function createFrameworksRouter(deps: FrameworksRouterDeps): Router {
       )
     : null;
 
-  router.get(
-    "/api/v1/legal-frameworks",
-    authenticate,
-    ...(viewRateLimit ? [viewRateLimit] : []),
-    authorizeView,
-    async (_req, res) => {
+  const frameworkViewChain = viewRateLimit
+    ? [authenticate, viewRateLimit, authorizeView]
+    : [authenticate, authorizeView];
+  router.get("/api/v1/legal-frameworks", ...frameworkViewChain, async (_req, res) => {
       try {
         const frameworks = await deps.frameworks.list();
         res.status(200).json({ frameworks });
