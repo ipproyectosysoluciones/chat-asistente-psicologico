@@ -10,7 +10,7 @@ overrides:
 # Referenced as "catalog:" in each package's devDependencies.
 catalog:
   typescript: ^5.9.3
-  vitest: ^3.2.7
+  vitest: ^4.1.11
   zod: ^4.0.0
   pino: ^9.6.0
   ioredis: ^5.4.0
